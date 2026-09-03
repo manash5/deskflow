@@ -17,8 +17,19 @@ def get_llm():
         api_key = os.getenv("MISTRAL_API_KEY")
     )
 
+# technical agent 
 def technical_agent(question: str)-> str: 
     llm= get_llm()
     template = (PROMPTS_DIR/"technical_agent.md").read_text(encoding = 'utf-8')
     prompt = template.format(question = question)
     return llm.invoke(prompt).content
+
+
+# Billing agent 
+def billing_agent(question: str) -> str: 
+    llm = get_llm()
+    template = (PROMPTS_DIR/"billing_agent.md").read_text(encoding = 'utf-8')
+    prompt = template.format(question = question)
+    return llm.invoke(prompt).content 
+
+
