@@ -139,6 +139,23 @@ def account_agent(question: str, company: dict) -> dict:
     return {"draft": draft}
 
 
+# Billing agent 
+def billing_agent(question: str, company: dict) -> dict:
+    llm = get_llm()
+    template = Template((PROMPTS_DIR / "billing_agent.md").read_text(encoding="utf-8"))
+    system = template.render(
+        company_name=company["name"],
+        persona=company.get("persona") or DEFAULT_PERSONA,
+        billing_guide=company.get("billing_guide") or "No billing guide provided.",
+    )
+    messages = [
+        SystemMessage(content=system),
+        HumanMessage(content=question),
+    ]
+    draft = llm.invoke(messages).content
+    return {"draft": draft} 
+
+
 # booking agent 
 def booking_agent(question: str) -> str: 
     llm = get_fast_model()
@@ -154,12 +171,7 @@ def technical_agent(question: str)-> str:
     return llm.invoke(prompt).content
 
 
-# Billing agent 
-def billing_agent(question: str) -> str: 
-    llm = get_llm()
-    template = (PROMPTS_DIR/"billing_agent.md").read_text(encoding = 'utf-8')
-    prompt = template.format(question = question)
-    return llm.invoke(prompt).content 
+
 
 
 
