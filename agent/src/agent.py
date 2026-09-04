@@ -190,10 +190,20 @@ def default_agent(question: str, company: dict) -> dict:
 
 
 # Review agent 
-def reviewer_agent(question: str, draft: str) -> str: 
-    llm = get_thinking_llm() 
-    template = (PROMPTS_DIR/"review_agent.md").read_text(encoding = 'utf-8')
-    prompt = template.format(question = question, draft = draft)
-    return llm.invoke(prompt).content
+def reviewer_agent(question: str, draft: str, company: dict) -> dict:
+    llm = get_thinking_llm()
+    template = Template((PROMPTS_DIR / "review_agent.md").read_text(encoding="utf-8"))
+    system = template.render(
+        company_name=company["name"],
+        persona=company.get("persona") or DEFAULT_PERSONA,
+    )
+    messages = [
+        SystemMessage(content=system),
+        HumanMessage(
+            content=f"Customer question:\n{question}\n\nDraft answer:\n{draft}"
+        ),
+    ]
+    answer = llm.invoke(messages).content
+    return {"answer": answer}
 
 
