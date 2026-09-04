@@ -122,6 +122,23 @@ def support_agent(question: str, company: dict) -> dict:
     return {"draft": draft}
 
 
+# Account agent 
+def account_agent(question: str, company: dict) -> dict:
+    llm = get_llm()
+    template = Template((PROMPTS_DIR / "account_agent.md").read_text(encoding="utf-8"))
+    system = template.render(
+        company_name=company["name"],
+        persona=company.get("persona") or DEFAULT_PERSONA,
+        account_guide=company.get("account_guide") or "No account guide provided.",
+    )
+    messages = [
+        SystemMessage(content=system),
+        HumanMessage(content=question),
+    ]
+    draft = llm.invoke(messages).content
+    return {"draft": draft}
+
+
 # booking agent 
 def booking_agent(question: str) -> str: 
     llm = get_fast_model()
