@@ -2,7 +2,7 @@ import os
 from dotenv import load_dotenv 
 from langchain.chat_models import init_chat_model
 from pathlib import Path 
-from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.messages import HumanMessageChunk, SystemMessage, HumanMessage
 from jinja2 import Template
 import json 
 
@@ -16,6 +16,7 @@ PROMPTS_DIR = Path(__file__).parent / "prompts"
 
 ENABLED_AGENTS = ["sales", "support", "account", "billing", "booking", "default"]
 CONFIDENCE_THRESHOLD = 0.6
+DEFAULT_PERSONA = (PROMPTS_DIR / "persona.md").read_text(encoding="utf-8")
 
 # ---- LLM Model -------------
 def get_llm(): 
@@ -93,8 +94,8 @@ def sales_agent(question: str, company: dict) -> dict:
     template = Template((PROMPTS_DIR / "sales_agent.md").read_text(encoding="utf-8"))
     system = template.render(
         company_name=company["name"],
-        persona=company.get("persona", "clear and helpful"),
-        product_catalog=company.get("product_catalog") or "No product catalog provided.",
+        persona=company.get("persona") or DEFAULT_PERSONA,
+        product_catalog=company.get("product_catalog") or "No product catalog provided.", # later when RAG is used we will remove these kind of things 
     )
     messages = [
         SystemMessage(content=system),
@@ -102,6 +103,24 @@ def sales_agent(question: str, company: dict) -> dict:
     ]
     draft = llm.invoke(messages).content
     return {"draft": draft}
+
+
+# support agent 
+def support_agent(question: str, company: dict) -> dict:
+    llm = get_thinking_llm()
+    template = Template((PROMPTS_DIR / "support_agent.md").read_text(encoding="utf-8"))
+    system = template.render(
+        company_name=company["name"],
+        persona=company.get("persona") or DEFAULT_PERSONA,
+        support_guide=company.get("support_guide") or "No support guide provided.",
+    )
+    messages = [
+        SystemMessage(content=system),
+        HumanMessage(content=question),
+    ]
+    draft = llm.invoke(messages).content
+    return {"draft": draft}
+
 
 # booking agent 
 def booking_agent(question: str) -> str: 
