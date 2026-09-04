@@ -3,6 +3,7 @@ from typing import TypedDict
 from langgraph.graph import END, START, StateGraph
 
 from agents import (
+    ENABLED_AGENTS,
     account_agent,
     billing_agent,
     booking_agent,
@@ -27,6 +28,7 @@ from guardrails import (
 
 class AgentState(TypedDict):
     question: str
+    route: str
     company: dict
     categories: list[str]
     confidence: float
@@ -135,11 +137,53 @@ def output_guardrails(state: AgentState) -> dict:
     }
 
 
+AGENT_ROUTES = {
+    "sales": "sales",
+    "support": "support",
+    "account": "account",
+    "billing": "billing",
+    "booking": "booking",
+    "default": "default",
+    "blocked": "blocked",
+}
 
-def router_node(state: AgentState): 
-    """ 
-    Here the router thinks and decide which agent to give to handle the query 
-    """
-    decision = router_node(state["question"])
 
-    
+def router_node(state: AgentState) -> dict:
+    """Classify the question and store which specialist should run next."""
+    if state.get("blocked"):
+        return {"route": "blocked"}
+
+    company = state.get("company") or {}
+    decision = router_agent(state["question"], company)
+
+    enabled = set(company.get("enabled_agents") or ENABLED_AGENTS)
+    categories = [
+        category
+        for category in decision.get("categories") or []
+        if category in enabled and category in AGENT_ROUTES
+    ]
+    if not categories:
+        categories = ["default"]
+
+    # Conditional edges need one next node. First category is the primary route;
+    # extra categories stay on state for a later fan-out if you add one.
+    route = categories[0]
+    trace = list(state.get("trace") or [])
+    trace = trace + [f"router: {route} ({decision.get('confidence', 0):.2f})"]
+
+    return {
+        "categories": categories,
+        "confidence": decision.get("confidence", 0.0),
+        "route": route,
+        "trace": trace,
+    }
+
+
+def route_to_agent(state: AgentState) -> str:
+    """Path function for add_conditional_edges after router_node."""
+    if state.get("blocked"):
+        return "blocked"
+    route = state.get("route") or "default"
+    if route not in AGENT_ROUTES:
+        return "default"
+    return route
