@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 from pathlib import Path 
 from langchain_core.messages import SystemMessage, HumanMessage
+from jinja2 import Template
 import json 
 
 load_dotenv()
@@ -67,33 +68,40 @@ def _parse_router_output(raw: str) -> dict:
 
     return {"categories": categories, "confidence": confidence}
 
+
 # --------Agents ---------------
+
 # Router agent 
-def router_agent(question: str, company_name)-> str: 
+def router_agent(question: str, company: dict) -> dict: 
     llm = get_fast_model()
-    template = (PROMPTS_DIR/"router_agent.md").read_text(encoding = 'utf-8')
+    template = Template((PROMPTS_DIR / "router_agent.md").read_text(encoding="utf-8"))
     system = template.render(
-        company_name = company_name, 
-        enabled_agents = json.dumps(ENABLED_AGENTS),
-        confidence_threshold = CONFIDENCE_THRESHOLD
+        company_name=company["name"],
+        enabled_agents=json.dumps(ENABLED_AGENTS),
+        confidence_threshold=CONFIDENCE_THRESHOLD,
     )
     messages = [
-        SystemMessage(content = system), 
-        HumanMessage(content = question)
+        SystemMessage(content=system),
+        HumanMessage(content=question),
     ]
     raw = llm.invoke(messages).content
     return _parse_router_output(raw)
 
 # sales agent 
-def sales_agent(question: str) -> str: 
+def sales_agent(question: str, company: dict) -> dict:
     llm = get_fast_model()
-    template = (PROMPTS_DIR/"sales_agent.md").read_text(encoding = 'utf-8')
-    prompt = template.format(question = question)
+    template = Template((PROMPTS_DIR / "sales_agent.md").read_text(encoding="utf-8"))
+    system = template.render(
+        company_name=company["name"],
+        persona=company.get("persona", "clear and helpful"),
+        product_catalog=company.get("product_catalog") or "No product catalog provided.",
+    )
     messages = [
-        SystemMessage(content = prompt),
-        HumanMessage(content= question)
+        SystemMessage(content=system),
+        HumanMessage(content=question),
     ]
-    return llm.invoke(messages).content
+    draft = llm.invoke(messages).content
+    return {"draft": draft}
 
 # booking agent 
 def booking_agent(question: str) -> str: 
