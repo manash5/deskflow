@@ -133,3 +133,13 @@ def output_guardrails(state: AgentState) -> dict:
         "block_reason": "",
         "trace": trace,
     }
+
+
+
+def router_node(state: AgentState): 
+    """ 
+    Here the router thinks and decide which agent to give to handle the query 
+    """
+    decision = router_node(state["question"])
+
+    
