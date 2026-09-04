@@ -6,7 +6,8 @@ from pathlib import Path
 load_dotenv()
 
 MODEL = os.getenv("MISTRAL_MODEL", "mistral-medium-latest")
-REVIEW_MODEL = os.getenv("REVIEW_MODEL", "qwen/qwen3.6-27b")
+REVIEW_MODEL = os.getenv("THINKING_MODEL", "qwen/qwen3.8-27b")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 
 PROMPTS_DIR = Path(__file__).parent / "prompts"
 
@@ -19,7 +20,7 @@ def get_llm():
     )
 
 # qwen thinking model 
-def get_review_model(): 
+def get_thinking_llm(): 
     return init_chat_model(
         model = REVIEW_MODEL, 
         model_provider = "groq"
@@ -51,7 +52,15 @@ def sales_agent(question: str) -> str:
 
 # Review agent 
 def reviewer_agent(question: str, draft: str) -> str: 
-    llm = get_review_model() 
+    llm = get_thinking_llm() 
     template = (PROMPTS_DIR/"review_agent.md").read_text(encoding = 'utf-8')
     prompt = template.format(question = question, draft = draft)
+    return llm.invoke(prompt).content
+
+
+# Router agent 
+def router_agent(question: str)-> str: 
+    llm = get_thinking_llm()
+    template = (PROMPTS_DIR/"router_agent.md").read_text(encoding = 'utf-8')
+    prompt = template.format(question = question)
     return llm.invoke(prompt).content
