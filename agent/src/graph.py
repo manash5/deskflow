@@ -195,3 +195,11 @@ def account_node(state: AgentState) -> dict:
         "draft": result["draft"],
         "trace": list(state.get("trace") or []) + ["account: drafted"],
     }
+
+
+def billing_node(state: AgentState) -> dict: 
+    result = billing_agent(state['question'], state['company'])
+    return {
+        "draft": result["draft"], 
+        "trace": list(state.get("trace") or []) + ["billing: drafted"], 
+    }
