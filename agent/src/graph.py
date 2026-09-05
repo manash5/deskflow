@@ -221,5 +221,13 @@ def sales_node(state: AgentState) -> dict:
     }
 
 
+def support_node(state: AgentState) -> dict:
+    result = support_agent(state["question"], state["company"])
+    return {
+        "draft": result["draft"],
+        "trace": list(state.get("trace") or []) + ["support: drafted"],
+    }
+
+
 
 
