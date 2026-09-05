@@ -1,6 +1,10 @@
+from pathlib import Path
 from typing import TypedDict
 
+from companies import scalina
 from langgraph.graph import END, START, StateGraph
+
+from companies.scalina import COMPANY as DEFAULT_COMPANY
 
 from agents import (
     ENABLED_AGENTS,
@@ -288,4 +292,36 @@ builder.add_edge("review-agent", "output_guardrails")
 builder.add_edge("output_guardrails", END)
 
 graph = builder.compile()
+
+WORKFLOW_IMAGE = Path(__file__).with_name("workflow.png")
+
+
+def save_workflow_image(path: Path | None = None) -> Path:
+    dest = path or WORKFLOW_IMAGE
+    dest.write_bytes(graph.get_graph().draw_mermaid_png())
+    return dest
+
+
+def run_support_system(question: str, company: dict | None = None) -> dict:
+    initial_state: AgentState = {
+        "question": question,
+        "route": "",
+        "company": company or DEFAULT_COMPANY,
+        "categories": [],
+        "confidence": 0.0,
+        "draft": "",
+        "answer": "",
+        "blocked": False,
+        "block_reason": "",
+        "trace": [],
+    }
+    return graph.invoke(initial_state)
+
+
+if __name__ == "__main__":
+    # image_path = save_workflow_image()
+    # print(f"Workflow image saved to {image_path}")
+    result = run_support_system("how can i purchase one of the services scalina's B2B services?")
+    print(result["answer"])
+    print(result["trace"])
 

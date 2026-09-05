@@ -10,7 +10,13 @@ load_dotenv()
 
 MODEL = os.getenv("MISTRAL_MODEL", "mistral-medium-latest")
 REVIEW_MODEL = os.getenv("THINKING_MODEL", "qwen/qwen3.8-27b")
-FAST_MODEL = os.getenv("FAST_MODEL", "openai/gpt-oss-120b")
+THINKING_MODEL_2 = os.getenv(
+    "THINKING_MODEL_2",
+    "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+)
+FAST_MODEL = os.getenv("FAST_MODEL", "gemini-2.5-flash")
+SECOND_MODEL = os.getenv("SECOND_MODEL", "openai/gpt-oss-120b")
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 PROMPTS_DIR = Path(__file__).parent / "prompts"
 
@@ -27,6 +33,14 @@ def get_llm():
         api_key = os.getenv("MISTRAL_API_KEY")
     )
 
+def get_second_llm(): 
+    return init_chat_model(
+        model = SECOND_MODEL, 
+        model_provider = "groq", 
+        temperature = 0.2, 
+        api_key = os.getenv('GROQ_API_KEY')
+    )
+
 # qwen thinking model 
 def get_thinking_llm(): 
     return init_chat_model(
@@ -36,13 +50,24 @@ def get_thinking_llm():
         api_key = os.getenv("GROQ_API_KEY")
     )
 
+
+def get_thinking_model2():
+    """OpenRouter free reasoning model — used for review and support."""
+    return init_chat_model(
+        model=THINKING_MODEL_2,
+        model_provider="openai",
+        temperature=0,
+        api_key=os.getenv("OPEN_ROUTER_KEY"),
+        base_url=OPENROUTER_BASE_URL,
+    )
+
 # groq model 
 def get_fast_model(): 
     return init_chat_model(
         model = FAST_MODEL, 
-        model_provider = "groq",
+        model_provider = "google_genai",
         temperature = 0.2,
-        api_key = os.getenv("GROQ_API_KEY")
+        api_key = os.getenv("GEMINI_API_KEY")
     )
 
 # managing raw outputs 
@@ -107,7 +132,7 @@ def sales_agent(question: str, company: dict) -> dict:
 
 # support agent 
 def support_agent(question: str, company: dict) -> dict:
-    llm = get_thinking_llm()
+    llm = get_thinking_model2()
     template = Template((PROMPTS_DIR / "support_agent.md").read_text(encoding="utf-8"))
     system = template.render(
         company_name=company["name"],
@@ -141,7 +166,7 @@ def account_agent(question: str, company: dict) -> dict:
 
 # Billing agent 
 def billing_agent(question: str, company: dict) -> dict:
-    llm = get_llm()
+    llm = get_second_llm()
     template = Template((PROMPTS_DIR / "billing_agent.md").read_text(encoding="utf-8"))
     system = template.render(
         company_name=company["name"],
@@ -174,7 +199,7 @@ def booking_agent(question: str, company: dict) -> dict:
 
 # Default agent 
 def default_agent(question: str, company: dict) -> dict:
-    llm = get_llm()
+    llm = get_second_llm()
     template = Template((PROMPTS_DIR / "default_agent.md").read_text(encoding="utf-8"))
     system = template.render(
         company_name=company["name"],
@@ -191,7 +216,7 @@ def default_agent(question: str, company: dict) -> dict:
 
 # Review agent 
 def reviewer_agent(question: str, draft: str, company: dict) -> dict:
-    llm = get_thinking_llm()
+    llm = get_thinking_model2()
     template = Template((PROMPTS_DIR / "review_agent.md").read_text(encoding="utf-8"))
     system = template.render(
         company_name=company["name"],
