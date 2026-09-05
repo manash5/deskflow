@@ -229,5 +229,12 @@ def support_node(state: AgentState) -> dict:
     }
 
 
+def default_node(state: AgentState) -> dict:
+    result = default_agent(state["question"], state["company"])
+    return {
+        "draft": result["draft"],
+        "trace": list(state.get("trace") or []) + ["default: drafted"],
+    }
+
 
 
