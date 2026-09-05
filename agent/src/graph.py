@@ -236,5 +236,11 @@ def default_node(state: AgentState) -> dict:
         "trace": list(state.get("trace") or []) + ["default: drafted"],
     }
 
+def reviewer_node(state: AgentState) -> dict:
+    result = reviewer_agent(state["question"], state["draft"], state["company"])
+    return {
+        "answer": result["answer"],
+        "trace": list(state.get("trace") or []) + ["reviewer: reviewed"],
+    }
 
 
