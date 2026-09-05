@@ -1,5 +1,7 @@
 COMPANY = {
+    "id": "scalina",
     "name": "Scalina Media",
+    "contact_email": "info@scalinamedia.com",
     "enabled_agents": [
         "sales",
         "support",

@@ -1,10 +1,9 @@
 from pathlib import Path
 from typing import TypedDict
 
-from companies import scalina
 from langgraph.graph import END, START, StateGraph
 
-from companies.scalina import COMPANY as DEFAULT_COMPANY
+from companies import DEFAULT_COMPANY_ID, get_company
 
 from agents import (
     ENABLED_AGENTS,
@@ -36,6 +35,7 @@ class AgentState(TypedDict):
     company: dict
     categories: list[str]
     confidence: float
+    context: str
     draft: str
     answer: str
     blocked: bool
@@ -190,6 +190,21 @@ def route_after_input(state: AgentState) -> str:
     return "router"
 
 
+def route_after_router(state: AgentState) -> str:
+    """Retrieve after classify so specialists see company-scoped context."""
+    if state.get("blocked"):
+        return "blocked"
+    return "retrieve"
+
+
+def retrieve_node(state: AgentState) -> dict:
+    """Placeholder until RAG. Keep context empty; filter later by company['id'] + route."""
+    return {
+        "context": state.get("context") or "",
+        "trace": list(state.get("trace") or []) + ["retrieve: skipped (no index)"],
+    }
+
+
 def route_to_agent(state: AgentState) -> str:
     """Path function for add_conditional_edges after router_node."""
     if state.get("blocked"):
@@ -248,10 +263,21 @@ def default_node(state: AgentState) -> dict:
     }
 
 def reviewer_node(state: AgentState) -> dict:
-    result = reviewer_agent(state["question"], state["draft"], state["company"])
+    result = reviewer_agent(
+        state["question"],
+        state["draft"],
+        state["company"],
+        state.get("context") or "",
+    )
+    trace = list(state.get("trace") or [])
+    if result.get("escalated"):
+        reason = result.get("escalate_reason") or "unspecified"
+        trace = trace + [f"reviewer: escalated ({reason})"]
+    else:
+        trace = trace + ["reviewer: reviewed"]
     return {
         "answer": result["answer"],
-        "trace": list(state.get("trace") or []) + ["reviewer: reviewed"],
+        "trace": trace,
     }
 
 
@@ -262,6 +288,7 @@ builder = StateGraph(AgentState)
 
 builder.add_node("input_guardrails", input_guardrails)
 builder.add_node("router-agent", router_node)
+builder.add_node("retrieve", retrieve_node)
 builder.add_node("sales-agent", sales_node)
 builder.add_node("account-agent", account_node)
 builder.add_node("billing-agent", billing_node)
@@ -280,7 +307,15 @@ builder.add_conditional_edges(
         "blocked": END,
     },
 )
-builder.add_conditional_edges("router-agent", route_to_agent, AGENT_ROUTES)
+builder.add_conditional_edges(
+    "router-agent",
+    route_after_router,
+    {
+        "retrieve": "retrieve",
+        "blocked": END,
+    },
+)
+builder.add_conditional_edges("retrieve", route_to_agent, AGENT_ROUTES)
 
 builder.add_edge("account-agent", "review-agent")
 builder.add_edge("billing-agent", "review-agent")
@@ -302,13 +337,21 @@ def save_workflow_image(path: Path | None = None) -> Path:
     return dest
 
 
-def run_support_system(question: str, company: dict | None = None) -> dict:
+def run_support_system(
+    question: str,
+    company_id: str | None = None,
+    company: dict | None = None,
+) -> dict:
+    resolved = company if company is not None else get_company(
+        company_id or DEFAULT_COMPANY_ID
+    )
     initial_state: AgentState = {
         "question": question,
         "route": "",
-        "company": company or DEFAULT_COMPANY,
+        "company": resolved,
         "categories": [],
         "confidence": 0.0,
+        "context": "",
         "draft": "",
         "answer": "",
         "blocked": False,
@@ -321,7 +364,10 @@ def run_support_system(question: str, company: dict | None = None) -> dict:
 if __name__ == "__main__":
     # image_path = save_workflow_image()
     # print(f"Workflow image saved to {image_path}")
-    result = run_support_system("how can i purchase one of the services scalina's B2B services?")
+    result = run_support_system(
+        "how can i purchase one of the services scalina's B2B services?",
+        company_id="scalina",
+    )
     print(result["answer"])
     print(result["trace"])
 

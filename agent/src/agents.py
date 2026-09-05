@@ -2,7 +2,7 @@ import os
 from dotenv import load_dotenv 
 from langchain.chat_models import init_chat_model
 from pathlib import Path 
-from langchain_core.messages import HumanMessageChunk, SystemMessage, HumanMessage
+from langchain_core.messages import SystemMessage, HumanMessage
 from jinja2 import Template
 import json 
 
@@ -70,8 +70,14 @@ def get_fast_model():
         api_key = os.getenv("GEMINI_API_KEY")
     )
 
+def _company_enabled_agents(company: dict) -> list[str]:
+    enabled = company.get("enabled_agents") or ENABLED_AGENTS
+    return [agent for agent in enabled if agent in ENABLED_AGENTS]
+
+
 # managing raw outputs 
-def _parse_router_output(raw: str) -> dict:
+def _parse_router_output(raw: str, enabled_agents: list[str] | None = None) -> dict:
+    allowed = set(enabled_agents or ENABLED_AGENTS)
     text = raw.strip()
     if text.startswith("```"):
         text = text.split("```")[1]
@@ -83,16 +89,49 @@ def _parse_router_output(raw: str) -> dict:
         data = json.loads(text)
         categories = [
             c for c in data.get("categories", [])
-            if c in ENABLED_AGENTS
+            if c in allowed
         ]
         confidence = float(data.get("confidence", 0))
     except (json.JSONDecodeError, TypeError, ValueError):
         return {"categories": ["default"], "confidence": 0.0}
 
     if not categories or confidence < CONFIDENCE_THRESHOLD:
-        categories = ["default"]
+        if "default" in allowed:
+            categories = ["default"]
+        elif allowed:
+            categories = [next(iter(allowed))]
+        else:
+            categories = ["default"]
 
     return {"categories": categories, "confidence": confidence}
+
+
+def customer_handoff(company: dict) -> str:
+    name = (company.get("name") or "the team").strip()
+    contact = (company.get("contact_email") or "").strip()
+    if contact:
+        return (
+            f"I don't have enough confirmed information to finish this. "
+            f"Please email {contact} and a teammate at {name} will help."
+        )
+    return (
+        f"I don't have enough confirmed information to finish this. "
+        f"Please contact {name} and a teammate will help."
+    )
+
+
+def apply_escalation(answer: str, company: dict) -> dict:
+    """Rewrite an internal ESCALATE line into a customer-facing handoff."""
+    text = (answer or "").strip()
+    first = text.splitlines()[0].strip() if text else ""
+    if first.upper().startswith("ESCALATE:"):
+        reason = first.split(":", 1)[1].strip()
+        return {
+            "answer": customer_handoff(company),
+            "escalated": True,
+            "escalate_reason": reason,
+        }
+    return {"answer": answer, "escalated": False, "escalate_reason": ""}
 
 
 # --------Agents ---------------
@@ -101,9 +140,10 @@ def _parse_router_output(raw: str) -> dict:
 def router_agent(question: str, company: dict) -> dict: 
     llm = get_fast_model()
     template = Template((PROMPTS_DIR / "router_agent.md").read_text(encoding="utf-8"))
+    enabled_agents = _company_enabled_agents(company)
     system = template.render(
         company_name=company["name"],
-        enabled_agents=json.dumps(ENABLED_AGENTS),
+        enabled_agents=json.dumps(enabled_agents),
         confidence_threshold=CONFIDENCE_THRESHOLD,
     )
     messages = [
@@ -111,7 +151,7 @@ def router_agent(question: str, company: dict) -> dict:
         HumanMessage(content=question),
     ]
     raw = llm.invoke(messages).content
-    return _parse_router_output(raw)
+    return _parse_router_output(raw, enabled_agents)
 
 # sales agent 
 def sales_agent(question: str, company: dict) -> dict:
@@ -215,12 +255,15 @@ def default_agent(question: str, company: dict) -> dict:
 
 
 # Review agent 
-def reviewer_agent(question: str, draft: str, company: dict) -> dict:
+def reviewer_agent(
+    question: str, draft: str, company: dict, context: str = ""
+) -> dict:
     llm = get_thinking_model2()
     template = Template((PROMPTS_DIR / "review_agent.md").read_text(encoding="utf-8"))
     system = template.render(
         company_name=company["name"],
         persona=company.get("persona") or DEFAULT_PERSONA,
+        retrieved_context=context or "No retrieved context.",
     )
     messages = [
         SystemMessage(content=system),
@@ -229,6 +272,6 @@ def reviewer_agent(question: str, draft: str, company: dict) -> dict:
         ),
     ]
     answer = llm.invoke(messages).content
-    return {"answer": answer}
+    return apply_escalation(answer, company)
 
 

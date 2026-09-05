@@ -15,6 +15,15 @@ def check_permissions(company: dict | None, categories: list[str] | None = None)
             findings=["missing_company"],
         )
 
+    if not str(company.get("id") or "").strip():
+        return GuardrailResult(
+            passed=False,
+            action="block",
+            reason="missing_company_id",
+            text=BLOCKED_PERMISSIONS,
+            findings=["missing_company_id"],
+        )
+
     enabled = company.get("enabled_agents") or list(DEFAULT_ENABLED_AGENTS)
     enabled_set = {str(agent) for agent in enabled}
 
