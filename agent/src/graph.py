@@ -211,3 +211,15 @@ def booking_node(state: AgentState) -> dict:
         "draft": result["draft"], 
         "trace": list(state.get("trace") or []) + ["booking: drafted"]
     }
+
+
+def sales_node(state: AgentState) -> dict:
+    result = sales_agent(state["question"], state["company"])
+    return {
+        "draft": result["draft"],
+        "trace": list(state.get("trace") or []) + ["sales: drafted"],
+    }
+
+
+
+
