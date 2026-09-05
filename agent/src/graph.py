@@ -138,13 +138,13 @@ def output_guardrails(state: AgentState) -> dict:
 
 
 AGENT_ROUTES = {
-    "sales": "sales",
-    "support": "support",
-    "account": "account",
-    "billing": "billing",
-    "booking": "booking",
-    "default": "default",
-    "blocked": "blocked",
+    "sales": "sales-agent",
+    "support": "support-agent",
+    "account": "account-agent",
+    "billing": "billing-agent",
+    "booking": "booking-agent",
+    "default": "default-agent",
+    "blocked": END,
 }
 
 
@@ -177,6 +177,13 @@ def router_node(state: AgentState) -> dict:
         "route": route,
         "trace": trace,
     }
+
+
+def route_after_input(state: AgentState) -> str:
+    """Skip the agents when input rails already blocked the request."""
+    if state.get("blocked"):
+        return "blocked"
+    return "router"
 
 
 def route_to_agent(state: AgentState) -> str:
@@ -243,4 +250,42 @@ def reviewer_node(state: AgentState) -> dict:
         "trace": list(state.get("trace") or []) + ["reviewer: reviewed"],
     }
 
+
+
+# =================== Agent Workflow ===========================
+
+builder = StateGraph(AgentState)
+
+builder.add_node("input_guardrails", input_guardrails)
+builder.add_node("router-agent", router_node)
+builder.add_node("sales-agent", sales_node)
+builder.add_node("account-agent", account_node)
+builder.add_node("billing-agent", billing_node)
+builder.add_node("booking-agent", booking_node)
+builder.add_node("default-agent", default_node)
+builder.add_node("support-agent", support_node)
+builder.add_node("review-agent", reviewer_node)
+builder.add_node("output_guardrails", output_guardrails)
+
+builder.add_edge(START, "input_guardrails")
+builder.add_conditional_edges(
+    "input_guardrails",
+    route_after_input,
+    {
+        "router": "router-agent",
+        "blocked": END,
+    },
+)
+builder.add_conditional_edges("router-agent", route_to_agent, AGENT_ROUTES)
+
+builder.add_edge("account-agent", "review-agent")
+builder.add_edge("billing-agent", "review-agent")
+builder.add_edge("booking-agent", "review-agent")
+builder.add_edge("default-agent", "review-agent")
+builder.add_edge("sales-agent", "review-agent")
+builder.add_edge("support-agent", "review-agent")
+builder.add_edge("review-agent", "output_guardrails")
+builder.add_edge("output_guardrails", END)
+
+graph = builder.compile()
 
