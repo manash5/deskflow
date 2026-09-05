@@ -187,3 +187,11 @@ def route_to_agent(state: AgentState) -> str:
     if route not in AGENT_ROUTES:
         return "default"
     return route
+
+
+def account_node(state: AgentState) -> dict:
+    result = account_agent(state["question"], state["company"])
+    return {
+        "draft": result["draft"],
+        "trace": list(state.get("trace") or []) + ["account: drafted"],
+    }
