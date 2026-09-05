@@ -203,3 +203,11 @@ def billing_node(state: AgentState) -> dict:
         "draft": result["draft"], 
         "trace": list(state.get("trace") or []) + ["billing: drafted"], 
     }
+
+
+def booking_node(state: AgentState) -> dict: 
+    result = booking_agent(state['question'], state['company'])
+    return {
+        "draft": result["draft"], 
+        "trace": list(state.get("trace") or []) + ["booking: drafted"]
+    }
