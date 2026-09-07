@@ -32,3 +32,6 @@ CATEGORY_FROM_STEM = {
 }
 
 SUPPORTED_SUFFIXES = {".md", ".txt", ".pdf"}
+
+# Short guides stay one chunk. Longer markdown is split on headings.
+CHUNK_SIZE = 800
