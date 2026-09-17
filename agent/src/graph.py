@@ -198,7 +198,7 @@ def route_after_router(state: AgentState) -> str:
 
 
 def retrieve_node(state: AgentState) -> dict:
-    """Placeholder until RAG. Keep context empty; filter later by company['id'] + route."""
+    """Placeholder until RAG. Keep context empty; later search this company's docs only."""
     return {
         "context": state.get("context") or "",
         "trace": list(state.get("trace") or []) + ["retrieve: skipped (no index)"],

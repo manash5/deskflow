@@ -4,12 +4,7 @@ from pathlib import Path
 from langchain_community.document_loaders import PyPDFLoader, TextLoader
 from langchain_core.documents import Document
 
-from RAG.config import (
-    CATEGORY_FROM_STEM,
-    KNOWN_CATEGORIES,
-    COMPANIES_DIR,
-    SUPPORTED_SUFFIXES,
-)
+from RAG.config import COMPANIES_DIR, SUPPORTED_SUFFIXES
 
 logger = logging.getLogger(__name__)
 
@@ -37,26 +32,10 @@ def _infer_company_id(company_root: Path, company_id: str | None) -> str:
     raise LoadError(f"Cannot infer company_id from {company_root}")
 
 
-def _category_from_path(path: Path) -> str:
-    stem = path.stem.lower().replace("-", "_")
-    if stem in CATEGORY_FROM_STEM:
-        return CATEGORY_FROM_STEM[stem]
-    for key, category in CATEGORY_FROM_STEM.items():
-        if stem.startswith(f"{key}_") or stem.startswith(f"{key}-"):
-            return category
-    for part in path.parts:
-        key = part.lower()
-        if key in KNOWN_CATEGORIES:
-            return key
-    return "general"
-
-
 def _tag(documents: list[Document], path: Path, company_id: str) -> list[Document]:
-    category = _category_from_path(path)
     for doc in documents:
         doc.metadata["company_id"] = company_id
         doc.metadata["source"] = str(path.resolve())
-        doc.metadata["category"] = category
         doc.metadata["file_type"] = path.suffix.lower().lstrip(".")
     return documents
 
@@ -88,7 +67,7 @@ def load_documents(
 
     Expected layout: data/companies/<company_id>/**/*.{md,txt,pdf}
 
-    Each document is tagged with company_id, source, category, and file_type.
+    Each document is tagged with company_id, source, and file_type.
     Fails if the folder is missing, empty, or any file fails to load.
     """
     root = _company_root(Path(data_dir) if data_dir else None, company_id)
@@ -123,11 +102,10 @@ def load_documents(
             continue
         documents.extend(_tag(nonempty, path, resolved_id))
         logger.info(
-            "Loaded %s docs from %s (company_id=%s, category=%s)",
+            "Loaded %s docs from %s (company_id=%s)",
             len(nonempty),
             path.name,
             resolved_id,
-            _category_from_path(path),
         )
 
     if errors:
