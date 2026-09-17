@@ -7,3 +7,5 @@ SUPPORTED_SUFFIXES = {".md", ".txt", ".pdf"}
 
 # Short guides stay one chunk. Longer markdown is split on headings.
 CHUNK_SIZE = 800
+# Must stay smaller than CHUNK_SIZE. Copied onto the next recursive chunk.
+CHUNK_OVERLAP = 150

@@ -5,7 +5,20 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from RAG.config import CHUNK_OVERLAP, CHUNK_SIZE
 
-_SEPARATORS = ["\n## ", "\n# ", "\n### ", "\n\n", "\n", ". ", " ", ""]
+# Coarser breaks first. Include no-newline forms so a heading on line 1 still splits.
+_SEPARATORS = [
+    "\n# ",
+    "# ",
+    "\n## ",
+    "## ",
+    "\n### ",
+    "### ",
+    "\n\n",
+    "\n",
+    ". ",
+    " ",
+    "",
+]
 
 
 def _source_stem(document: Document) -> str:
@@ -29,6 +42,11 @@ def chunk_recursive(
     chunk_size: int = CHUNK_SIZE,
     chunk_overlap: int = CHUNK_OVERLAP,
 ) -> list[Document]:
+    """Split documents to about chunk_size characters, preferring headings then paragraphs."""
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be positive")
+    if chunk_overlap < 0:
+        raise ValueError("chunk_overlap must be >= 0")
     if chunk_overlap >= chunk_size:
         raise ValueError("chunk_overlap must be smaller than chunk_size")
 
