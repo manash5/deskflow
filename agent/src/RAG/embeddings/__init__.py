@@ -1,3 +1,3 @@
-from RAG.embeddings.embeddings import embed_chunks, get_embedding_model
+from RAG.embeddings.embeddings import EmbeddingModel
 
-__all__ = ["embed_chunks", "get_embedding_model"]
+__all__ = ["EmbeddingModel"]
