@@ -96,7 +96,16 @@ class ChromaStore:
         metadatas: list[dict] = []
         for index, chunk in enumerate(chunks):
             meta = dict(chunk.metadata)
-            meta["company_id"] = cid
+            tagged = str(meta.get("company_id") or "").strip()
+            if not tagged:
+                raise ValueError(
+                    f"chunk {index} has no company_id; load/chunk before upsert"
+                )
+            if tagged != cid:
+                raise ValueError(
+                    f"chunk {index} company_id {tagged!r} does not match upsert "
+                    f"company_id {cid!r}; refusing to mix companies"
+                )
             chunk_id = str(meta.get("chunk_id") or f"{cid}:chunk:{index}")
             meta["chunk_id"] = chunk_id
             ids.append(chunk_id)

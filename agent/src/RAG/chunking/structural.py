@@ -55,7 +55,7 @@ def _chunk_one(document: Document) -> list[Document]:
     if len(text) <= CHUNK_SIZE or not _has_heading(text):
         return [_clone(document, text, 0)]
 
-    sections = _split_on_headings(text)
+    sections = _split_on_headings(text) 
     if len(sections) <= 1:
         return [_clone(document, text, 0)]
     return [_clone(document, section, index) for index, section in enumerate(sections)]

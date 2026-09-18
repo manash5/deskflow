@@ -10,7 +10,7 @@ load_dotenv()
 
 MODEL = os.getenv("MISTRAL_MODEL", "mistral-medium-latest")
 REVIEW_MODEL = os.getenv("THINKING_MODEL", "qwen/qwen3.8-27b")
-THINKING_MODEL_2 = os.getenv(
+THINKING_MODEL_2 = os.getenv(   
     "THINKING_MODEL_2",
     "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
 )
