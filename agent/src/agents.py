@@ -1,11 +1,14 @@
 import os 
 from dotenv import load_dotenv 
 from langchain.chat_models import init_chat_model
+from langchain_google_genai import ChatGoogleGenerativeAI
 from pathlib import Path 
 from langchain_core.messages import SystemMessage, HumanMessage
 from jinja2 import Template
 import json 
 
+_AGENT_ROOT = Path(__file__).resolve().parent.parent
+load_dotenv(_AGENT_ROOT / ".env")
 load_dotenv()
 
 MODEL = os.getenv("MISTRAL_MODEL", "mistral-medium-latest")
@@ -14,7 +17,7 @@ THINKING_MODEL_2 = os.getenv(
     "THINKING_MODEL_2",
     "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
 )
-FAST_MODEL = os.getenv("FAST_MODEL", "gemini-2.5-flash")
+FAST_MODEL = os.getenv("FAST_MODEL", "gemini-3.5-flash-lite")
 SECOND_MODEL = os.getenv("SECOND_MODEL", "openai/gpt-oss-120b")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
@@ -61,18 +64,47 @@ def get_thinking_model2():
         base_url=OPENROUTER_BASE_URL,
     )
 
-# groq model 
-def get_fast_model(): 
-    return init_chat_model(
-        model = FAST_MODEL, 
-        model_provider = "google_genai",
-        temperature = 0.2,
-        api_key = os.getenv("GEMINI_API_KEY")
+def _google_api_key() -> str:
+    key = (os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY") or "").strip()
+    if not key:
+        raise RuntimeError(
+            "GOOGLE_API_KEY is missing or empty. "
+            "Set it in .env to a Google AI Studio API key (AIza...), "
+            "not a Cloud/OAuth token."
+        )
+    return key
+
+
+def get_fast_model():
+    return ChatGoogleGenerativeAI(
+        model=FAST_MODEL,
+        temperature=0.2,
+        google_api_key=_google_api_key(),
     )
 
 def _company_enabled_agents(company: dict) -> list[str]:
     enabled = company.get("enabled_agents") or ENABLED_AGENTS
     return [agent for agent in enabled if agent in ENABLED_AGENTS]
+
+
+def _message_text(content) -> str:
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+            elif isinstance(block, dict) and block.get("text"):
+                parts.append(str(block["text"]))
+            else:
+                text = getattr(block, "text", None)
+                if text:
+                    parts.append(str(text))
+        return "\n".join(parts)
+    return str(content)
 
 
 # managing raw outputs 
@@ -134,6 +166,16 @@ def apply_escalation(answer: str, company: dict) -> dict:
     return {"answer": answer, "escalated": False, "escalate_reason": ""}
 
 
+def _question_with_context(question: str, context: str = "") -> str:
+    knowledge = (context or "").strip()
+    if not knowledge:
+        return question
+    return (
+        f"Retrieved company knowledge:\n{knowledge}\n\n"
+        f"Customer question:\n{question}"
+    )
+
+
 # --------Agents ---------------
 
 # Router agent 
@@ -150,11 +192,11 @@ def router_agent(question: str, company: dict) -> dict:
         SystemMessage(content=system),
         HumanMessage(content=question),
     ]
-    raw = llm.invoke(messages).content
+    raw = _message_text(llm.invoke(messages).content)
     return _parse_router_output(raw, enabled_agents)
 
 # sales agent 
-def sales_agent(question: str, company: dict) -> dict:
+def sales_agent(question: str, company: dict, context: str = "") -> dict:
     llm = get_fast_model()
     template = Template((PROMPTS_DIR / "sales_agent.md").read_text(encoding="utf-8"))
     system = template.render(
@@ -164,14 +206,14 @@ def sales_agent(question: str, company: dict) -> dict:
     )
     messages = [
         SystemMessage(content=system),
-        HumanMessage(content=question),
+        HumanMessage(content=_question_with_context(question, context)),
     ]
-    draft = llm.invoke(messages).content
+    draft = _message_text(llm.invoke(messages).content)
     return {"draft": draft}
 
 
 # support agent 
-def support_agent(question: str, company: dict) -> dict:
+def support_agent(question: str, company: dict, context: str = "") -> dict:
     llm = get_thinking_model2()
     template = Template((PROMPTS_DIR / "support_agent.md").read_text(encoding="utf-8"))
     system = template.render(
@@ -181,14 +223,14 @@ def support_agent(question: str, company: dict) -> dict:
     )
     messages = [
         SystemMessage(content=system),
-        HumanMessage(content=question),
+        HumanMessage(content=_question_with_context(question, context)),
     ]
-    draft = llm.invoke(messages).content
+    draft = _message_text(llm.invoke(messages).content)
     return {"draft": draft}
 
 
 # Account agent 
-def account_agent(question: str, company: dict) -> dict:
+def account_agent(question: str, company: dict, context: str = "") -> dict:
     llm = get_llm()
     template = Template((PROMPTS_DIR / "account_agent.md").read_text(encoding="utf-8"))
     system = template.render(
@@ -198,14 +240,14 @@ def account_agent(question: str, company: dict) -> dict:
     )
     messages = [
         SystemMessage(content=system),
-        HumanMessage(content=question),
+        HumanMessage(content=_question_with_context(question, context)),
     ]
-    draft = llm.invoke(messages).content
+    draft = _message_text(llm.invoke(messages).content)
     return {"draft": draft}
 
 
 # Billing agent 
-def billing_agent(question: str, company: dict) -> dict:
+def billing_agent(question: str, company: dict, context: str = "") -> dict:
     llm = get_second_llm()
     template = Template((PROMPTS_DIR / "billing_agent.md").read_text(encoding="utf-8"))
     system = template.render(
@@ -215,14 +257,14 @@ def billing_agent(question: str, company: dict) -> dict:
     )
     messages = [
         SystemMessage(content=system),
-        HumanMessage(content=question),
+        HumanMessage(content=_question_with_context(question, context)),
     ]
-    draft = llm.invoke(messages).content
+    draft = _message_text(llm.invoke(messages).content)
     return {"draft": draft} 
 
 
 # booking agent 
-def booking_agent(question: str, company: dict) -> dict:
+def booking_agent(question: str, company: dict, context: str = "") -> dict:
     llm = get_llm()
     template = Template((PROMPTS_DIR / "booking_agent.md").read_text(encoding="utf-8"))
     system = template.render(
@@ -232,13 +274,13 @@ def booking_agent(question: str, company: dict) -> dict:
     )
     messages = [
         SystemMessage(content=system),
-        HumanMessage(content=question),
+        HumanMessage(content=_question_with_context(question, context)),
     ]
-    draft = llm.invoke(messages).content
+    draft = _message_text(llm.invoke(messages).content)
     return {"draft": draft} 
 
 # Default agent 
-def default_agent(question: str, company: dict) -> dict:
+def default_agent(question: str, company: dict, context: str = "") -> dict:
     llm = get_second_llm()
     template = Template((PROMPTS_DIR / "default_agent.md").read_text(encoding="utf-8"))
     system = template.render(
@@ -248,9 +290,9 @@ def default_agent(question: str, company: dict) -> dict:
     )
     messages = [
         SystemMessage(content=system),
-        HumanMessage(content=question),
+        HumanMessage(content=_question_with_context(question, context)),
     ]
-    draft = llm.invoke(messages).content
+    draft = _message_text(llm.invoke(messages).content)
     return {"draft": draft}
 
 
@@ -271,7 +313,7 @@ def reviewer_agent(
             content=f"Customer question:\n{question}\n\nDraft answer:\n{draft}"
         ),
     ]
-    answer = llm.invoke(messages).content
+    answer = _message_text(llm.invoke(messages).content)
     return apply_escalation(answer, company)
 
 

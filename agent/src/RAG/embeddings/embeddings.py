@@ -34,7 +34,11 @@ class EmbeddingModel:
     ) -> np.ndarray:
         texts = [chunk.page_content for chunk in chunks]
         if not texts:
-            dim = self._model.get_embedding_dimension()
+            dim = (
+                self._model.get_sentence_embedding_dimension()
+                if hasattr(self._model, "get_sentence_embedding_dimension")
+                else self._model.get_embedding_dimension()
+            )
             return np.zeros((0, dim), dtype=np.float32)
 
         embeddings = self._model.encode(

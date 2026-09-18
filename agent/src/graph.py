@@ -3,6 +3,8 @@ from typing import TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
+from RAG.pipeline import Pipeline
+
 from companies import DEFAULT_COMPANY_ID, get_company
 
 from agents import (
@@ -198,10 +200,30 @@ def route_after_router(state: AgentState) -> str:
 
 
 def retrieve_node(state: AgentState) -> dict:
-    """Placeholder until RAG. Keep context empty; later search this company's docs only."""
+    """Embed the question and fill context from this company's Chroma collection."""
+    trace = list(state.get("trace") or [])
+    company = state.get("company") or {}
+    company_id = str(company.get("id") or "").strip()
+    question = state.get("question") or ""
+
+    if not company_id:
+        return {
+            "context": "",
+            "trace": trace + ["retrieve: skipped (missing company id)"],
+        }
+
+    try:
+        context = Pipeline.instance().retrieve(question, company_id)
+    except Exception as exc:
+        return {
+            "context": "",
+            "trace": trace + [f"retrieve: error ({type(exc).__name__})"],
+        }
+
+    n_passages = len([p for p in context.split("\n\n") if p.strip()]) if context else 0
     return {
-        "context": state.get("context") or "",
-        "trace": list(state.get("trace") or []) + ["retrieve: skipped (no index)"],
+        "context": context,
+        "trace": trace + [f"retrieve: {n_passages} passages"],
     }
 
 
@@ -216,7 +238,7 @@ def route_to_agent(state: AgentState) -> str:
 
 
 def account_node(state: AgentState) -> dict:
-    result = account_agent(state["question"], state["company"])
+    result = account_agent(state["question"], state["company"], state.get("context") or "")
     return {
         "draft": result["draft"],
         "trace": list(state.get("trace") or []) + ["account: drafted"],
@@ -224,7 +246,7 @@ def account_node(state: AgentState) -> dict:
 
 
 def billing_node(state: AgentState) -> dict: 
-    result = billing_agent(state['question'], state['company'])
+    result = billing_agent(state['question'], state['company'], state.get("context") or "")
     return {
         "draft": result["draft"], 
         "trace": list(state.get("trace") or []) + ["billing: drafted"], 
@@ -232,7 +254,7 @@ def billing_node(state: AgentState) -> dict:
 
 
 def booking_node(state: AgentState) -> dict: 
-    result = booking_agent(state['question'], state['company'])
+    result = booking_agent(state['question'], state['company'], state.get("context") or "")
     return {
         "draft": result["draft"], 
         "trace": list(state.get("trace") or []) + ["booking: drafted"]
@@ -240,7 +262,7 @@ def booking_node(state: AgentState) -> dict:
 
 
 def sales_node(state: AgentState) -> dict:
-    result = sales_agent(state["question"], state["company"])
+    result = sales_agent(state["question"], state["company"], state.get("context") or "")
     return {
         "draft": result["draft"],
         "trace": list(state.get("trace") or []) + ["sales: drafted"],
@@ -248,7 +270,7 @@ def sales_node(state: AgentState) -> dict:
 
 
 def support_node(state: AgentState) -> dict:
-    result = support_agent(state["question"], state["company"])
+    result = support_agent(state["question"], state["company"], state.get("context") or "")
     return {
         "draft": result["draft"],
         "trace": list(state.get("trace") or []) + ["support: drafted"],
@@ -256,7 +278,7 @@ def support_node(state: AgentState) -> dict:
 
 
 def default_node(state: AgentState) -> dict:
-    result = default_agent(state["question"], state["company"])
+    result = default_agent(state["question"], state["company"], state.get("context") or "")
     return {
         "draft": result["draft"],
         "trace": list(state.get("trace") or []) + ["default: drafted"],
@@ -365,7 +387,7 @@ if __name__ == "__main__":
     # image_path = save_workflow_image()
     # print(f"Workflow image saved to {image_path}")
     result = run_support_system(
-        "how can i purchase one of the services scalina's B2B services?",
+        "What services do you guys sell?",
         company_id="scalina",
     )
     print(result["answer"])
