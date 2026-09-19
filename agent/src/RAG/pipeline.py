@@ -68,3 +68,4 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     target = sys.argv[1] if len(sys.argv) > 1 else "scalina"
     print(Pipeline.instance().ingest(target))
+
