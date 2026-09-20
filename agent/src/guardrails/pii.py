@@ -54,6 +54,13 @@ def _redact_cards(text: str, findings: list[str]) -> str:
     return _CARD_CANDIDATE.sub(replace, text)
 
 
+def _company_contact_emails(company: dict | None) -> set[str]:
+    if not company:
+        return set()
+    raw = (company.get("contact_email") or "").strip().lower()
+    return {raw} if raw else set()
+
+
 def _mask_email(match: re.Match[str]) -> str:
     email = match.group(0)
     local, _, domain = email.partition("@")
@@ -69,9 +76,13 @@ def _mask_phone(match: re.Match[str]) -> str:
     return f"[PHONE ...{last4}]"
 
 
-def _redact_pii(text: str) -> tuple[str, list[str]]:
+def _redact_pii(
+    text: str,
+    allowed_emails: set[str] | None = None,
+) -> tuple[str, list[str]]:
     findings: list[str] = []
     redacted = text
+    allowed = {email.strip().lower() for email in (allowed_emails or set()) if email}
 
     redacted = _redact_cards(redacted, findings)
 
@@ -86,9 +97,14 @@ def _redact_pii(text: str) -> tuple[str, list[str]]:
             findings.append(label)
             redacted = pattern.sub(replacement, redacted)
 
-    if _EMAIL.search(redacted):
+    def replace_email(match: re.Match[str]) -> str:
+        email = match.group(0)
+        if email.lower() in allowed:
+            return email
         findings.append("email")
-        redacted = _EMAIL.sub(_mask_email, redacted)
+        return _mask_email(match)
+
+    redacted = _EMAIL.sub(replace_email, redacted)
 
     if _PHONE.search(redacted):
         findings.append("phone")
@@ -120,9 +136,16 @@ def check_input_pii(text: str) -> GuardrailResult:
     )
 
 
-def check_output_pii(text: str) -> GuardrailResult:
-    """Stop the reply from leaking PAN, secrets, or unmasked identifiers."""
-    redacted, findings = _redact_pii(text)
+def check_output_pii(text: str, company: dict | None = None) -> GuardrailResult:
+    """Stop the reply from leaking PAN, secrets, or customer identifiers.
+
+    The company's public contact_email is left intact so the customer can
+    still be told how to reach the business.
+    """
+    redacted, findings = _redact_pii(
+        text,
+        allowed_emails=_company_contact_emails(company),
+    )
     if not findings:
         return GuardrailResult(passed=True, action="allow", text=text)
 
