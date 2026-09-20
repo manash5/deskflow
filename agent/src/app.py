@@ -1,7 +1,7 @@
 import os
 import re
 from pathlib import Path
-
+import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -197,3 +197,7 @@ def chat(body: ChatRequest) -> ChatResponse:
         confidence=float(result.get("confidence") or 0.0),
         trace=list(result.get("trace") or []),
     )
+
+
+if __name__ == "__main__":
+    uvicorn.run("app:app", host="127.0.0.1", port=8000, reload=True)
