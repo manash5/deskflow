@@ -110,7 +110,12 @@ def output_guardrails(state: AgentState) -> dict:
     answer = state.get("answer") or state.get("draft") or ""
     trace = list(state.get("trace") or [])
 
-    pii = run_rail("output_pii", check_output_pii, answer)
+    pii = run_rail(
+        "output_pii",
+        check_output_pii,
+        answer,
+        state.get("company"),
+    )
     trace = _append_trace(trace, "output_pii", pii)
     if not pii.passed:
         return {
@@ -384,8 +389,8 @@ def run_support_system(
 
 
 if __name__ == "__main__":
-    # image_path = save_workflow_image()
-    # print(f"Workflow image saved to {image_path}")
+    image_path = save_workflow_image()
+    print(f"Workflow image saved to {image_path}")
     result = run_support_system(
         "What services do you guys sell?",
         company_id="scalina",
