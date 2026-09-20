@@ -9,3 +9,9 @@ langchain
 langchain-mistralai
 langchain-google-genai
 langchain-openai
+langchain-community
+pymupdf 
+chromadb
+pageindex 
+langchain-text-splitters
+sentence-transformers 

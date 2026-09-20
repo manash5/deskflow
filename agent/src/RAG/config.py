@@ -1,0 +1,19 @@
+from pathlib import Path
+
+RAG_DIR = Path(__file__).resolve().parent
+COMPANIES_DIR = RAG_DIR / "data" / "companies"
+
+SUPPORTED_SUFFIXES = {".md", ".txt", ".pdf"}
+
+# Short guides stay one chunk. Longer markdown is split on headings.
+CHUNK_SIZE = 800
+# Must stay smaller than CHUNK_SIZE. Copied onto the next recursive chunk.
+CHUNK_OVERLAP = 150
+
+# Local embedder. Same model must be used at ingest and query.
+EMBEDDING_MODEL = "all-MiniLM-L6-v2"
+
+# One Chroma collection per company (same persist dir, different fridge).
+CHROMA_DIR = RAG_DIR / "data" / "chroma"
+CHROMA_COLLECTION_PREFIX = "co"
+RETRIEVE_K = 5
