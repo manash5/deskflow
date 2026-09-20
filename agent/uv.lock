@@ -26,7 +26,7 @@ dependencies = [
     { name = "langgraph" },
     { name = "pageindex" },
     { name = "pymupdf" },
-    { name = "python-dotenv" },
+    { name = "python-multipart" },
     { name = "sentence-transformers" },
     { name = "uvicorn" },
 ]
@@ -48,7 +48,7 @@ requires-dist = [
     { name = "langgraph", specifier = "==1.2.0" },
     { name = "pageindex", specifier = ">=0.2.14" },
     { name = "pymupdf", specifier = ">=1.28.2" },
-    { name = "python-dotenv", specifier = "==1.2.2" },
+    { name = "python-multipart", specifier = ">=0.0.20" },
     { name = "sentence-transformers", specifier = ">=6.0.1" },
     { name = "uvicorn", specifier = "==0.52.1" },
 ]
