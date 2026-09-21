@@ -11,7 +11,8 @@ from RAG.config import COMPANIES_DIR, SUPPORTED_SUFFIXES
 from RAG.ingestion import LoadError
 from RAG.pipeline import Pipeline
 from RAG.vectorstore.chroma import ChromaStore
-from companies import DEFAULT_COMPANY_ID, REGISTRY, get_company
+from agents import ENABLED_AGENTS
+from companies import DEFAULT_COMPANY_ID, REGISTRY, get_company, upsert_company
 from graph import run_support_system
 
 _AGENT_ROOT = Path(__file__).resolve().parent.parent
@@ -78,6 +79,20 @@ class KnowledgeStatus(BaseModel):
     chunk_count: int
 
 
+class CompanyUpsert(BaseModel):
+    id: str = Field(..., min_length=1)
+    name: str = Field(..., min_length=1)
+    contact_email: str = ""
+    enabled_agents: list[str] = Field(default_factory=list)
+    persona: str = ""
+    product_catalog: str = ""
+    support_guide: str = ""
+    account_guide: str = ""
+    billing_guide: str = ""
+    booking_guide: str = ""
+    company_guide: str = ""
+
+
 def _require_company_id(company_id: str) -> str:
     cleaned = (company_id or "").strip()
     if not _SAFE_COMPANY_ID.fullmatch(cleaned):
@@ -129,6 +144,40 @@ def list_companies() -> list[CompanyCard]:
 def get_company_card(company_id: str) -> CompanyCard:
     """One tenant card for a chat header or settings screen."""
     return _public_company(get_company(_require_company_id(company_id)))
+
+
+@app.put("/v1/companies/{company_id}", response_model=CompanyCard)
+def put_company(company_id: str, body: CompanyUpsert) -> CompanyCard:
+    """Register or update a tenant so ingest and chat can run without a Python file."""
+    cid = (company_id or "").strip()
+    if not _SAFE_COMPANY_ID.fullmatch(cid):
+        raise HTTPException(
+            status_code=400,
+            detail="company_id must be letters, numbers, underscore, or hyphen.",
+        )
+    if body.id.strip() != cid:
+        raise HTTPException(status_code=400, detail="Body id must match the path.")
+
+    enabled = [agent for agent in body.enabled_agents if agent in ENABLED_AGENTS]
+    if not enabled:
+        enabled = list(ENABLED_AGENTS)
+
+    company = upsert_company(
+        {
+            "id": cid,
+            "name": body.name.strip(),
+            "contact_email": body.contact_email.strip(),
+            "enabled_agents": enabled,
+            "persona": body.persona.strip(),
+            "product_catalog": body.product_catalog,
+            "support_guide": body.support_guide,
+            "account_guide": body.account_guide,
+            "billing_guide": body.billing_guide,
+            "booking_guide": body.booking_guide,
+            "company_guide": body.company_guide,
+        }
+    )
+    return _public_company(company)
 
 
 @app.get("/v1/companies/{company_id}/knowledge", response_model=KnowledgeStatus)
