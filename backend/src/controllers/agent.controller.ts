@@ -9,11 +9,11 @@ export const agentController = {
   },
 
   async list(_req: Request, res: Response) {
-    res.json(agentService.list());
+    res.json(await agentService.list());
   },
 
   async get(req: Request, res: Response) {
-    res.json(agentService.get(routeParam(req, "id")));
+    res.json(await agentService.get(routeParam(req, "id")));
   },
 
   async create(req: Request, res: Response) {
@@ -38,6 +38,6 @@ export const agentController = {
   },
 
   async performance(req: Request, res: Response) {
-    res.json(agentService.performance(routeParam(req, "id")));
+    res.json(await agentService.performance(routeParam(req, "id")));
   },
 };

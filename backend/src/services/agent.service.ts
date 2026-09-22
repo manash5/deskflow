@@ -47,40 +47,43 @@ async function syncAgent(agent: Agent, customerName: string) {
 }
 
 export const agentService = {
-  list() {
-    return agentRepository.list().map((agent) => {
-      const customer = customerRepository.findById(agent.customerId);
-      const turns = chatTurnRepository.listByAgent(agent.id);
-      return {
-        ...agent,
-        customerName: customer?.name || "",
-        chats: turns.length,
-        blocked: turns.filter((turn) => turn.blocked).length,
-        lastUsedAt: turns[0]?.createdAt ?? null,
-      };
-    });
+  async list() {
+    const agents = await agentRepository.list();
+    return Promise.all(
+      agents.map(async (agent) => {
+        const customer = await customerRepository.findById(agent.customerId);
+        const turns = await chatTurnRepository.listByAgent(agent.id);
+        return {
+          ...agent,
+          customerName: customer?.name || "",
+          chats: turns.length,
+          blocked: turns.filter((turn) => turn.blocked).length,
+          lastUsedAt: turns[0]?.createdAt ?? null,
+        };
+      }),
+    );
   },
 
-  get(id: string) {
-    const agent = agentRepository.findById(id);
+  async get(id: string) {
+    const agent = await agentRepository.findById(id);
     if (!agent) {
       throw new HttpError(404, "Agent not found.");
     }
-    const customer = customerRepository.findById(agent.customerId);
+    const customer = await customerRepository.findById(agent.customerId);
     return { ...agent, customerName: customer?.name || "", customer };
   },
 
-  getByCompanyId(companyId: string) {
-    const agent = agentRepository.findByCompanyId(companyId);
+  async getByCompanyId(companyId: string) {
+    const agent = await agentRepository.findByCompanyId(companyId);
     if (!agent) {
       throw new HttpError(404, "Agent not found.");
     }
     return agent;
   },
 
-  publicCard(companyId: string) {
-    const agent = this.getByCompanyId(companyId);
-    const customer = customerRepository.findById(agent.customerId);
+  async publicCard(companyId: string) {
+    const agent = await this.getByCompanyId(companyId);
+    const customer = await customerRepository.findById(agent.customerId);
     return {
       companyId: agent.companyId,
       name: agent.name,
@@ -89,7 +92,7 @@ export const agentService = {
   },
 
   async create(input: AgentInput) {
-    const customer = customerRepository.findById(input.customerId);
+    const customer = await customerRepository.findById(input.customerId);
     if (!customer) {
       throw new HttpError(404, "Customer not found.");
     }
@@ -100,7 +103,7 @@ export const agentService = {
         "companyId must be letters, numbers, underscore, or hyphen.",
       );
     }
-    if (agentRepository.findByCompanyId(companyId)) {
+    if (await agentRepository.findByCompanyId(companyId)) {
       throw new HttpError(409, "That company id is already in use.");
     }
     const now = new Date().toISOString();
@@ -115,17 +118,17 @@ export const agentService = {
       createdAt: now,
       updatedAt: now,
     };
-    agentRepository.save(agent);
+    await agentRepository.save(agent);
     await syncAgent(agent, customer.company || customer.name);
     return agent;
   },
 
   async update(id: string, input: Partial<AgentInput>) {
-    const current = agentRepository.findById(id);
+    const current = await agentRepository.findById(id);
     if (!current) {
       throw new HttpError(404, "Agent not found.");
     }
-    const customer = customerRepository.findById(current.customerId);
+    const customer = await customerRepository.findById(current.customerId);
     const next: Agent = {
       ...current,
       name: input.name !== undefined ? input.name.trim() : current.name,
@@ -140,13 +143,13 @@ export const agentService = {
           : current.contactEmail,
       updatedAt: new Date().toISOString(),
     };
-    agentRepository.save(next);
+    await agentRepository.save(next);
     await syncAgent(next, customer?.company || customer?.name || next.name);
     return next;
   },
 
   async knowledge(id: string) {
-    const agent = this.get(id);
+    const agent = await this.get(id);
     return agentClient.knowledge(agent.companyId);
   },
 
@@ -154,15 +157,15 @@ export const agentService = {
     id: string,
     files: { buffer: Buffer; originalname: string; mimetype: string }[],
   ) {
-    const agent = this.get(id);
-    const customer = customerRepository.findById(agent.customerId);
+    const agent = await this.get(id);
+    const customer = await customerRepository.findById(agent.customerId);
     await syncAgent(agent, customer?.company || customer?.name || agent.name);
     return agentClient.ingest(agent.companyId, files);
   },
 
-  performance(id: string) {
-    const agent = this.get(id);
-    const turns = chatTurnRepository.listByAgent(id);
+  async performance(id: string) {
+    const agent = await this.get(id);
+    const turns = await chatTurnRepository.listByAgent(id);
     const blocked = turns.filter((turn) => turn.blocked).length;
     const routes: Record<string, number> = {};
     let confidenceSum = 0;

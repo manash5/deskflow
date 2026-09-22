@@ -20,25 +20,28 @@ function requireText(value: string | undefined, field: string) {
 }
 
 export const customerService = {
-  list() {
-    return customerRepository.list().map((customer) => ({
-      ...customer,
-      agentCount: agentRepository.listByCustomer(customer.id).length,
-    }));
+  async list() {
+    const customers = await customerRepository.list();
+    return Promise.all(
+      customers.map(async (customer) => ({
+        ...customer,
+        agentCount: (await agentRepository.listByCustomer(customer.id)).length,
+      })),
+    );
   },
 
-  get(id: string) {
-    const customer = customerRepository.findById(id);
+  async get(id: string) {
+    const customer = await customerRepository.findById(id);
     if (!customer) {
       throw new HttpError(404, "Customer not found.");
     }
     return {
       ...customer,
-      agents: agentRepository.listByCustomer(customer.id),
+      agents: await agentRepository.listByCustomer(customer.id),
     };
   },
 
-  create(input: CustomerInput): Customer {
+  async create(input: CustomerInput): Promise<Customer> {
     const now = new Date().toISOString();
     const customer: Customer = {
       id: randomUUID(),
@@ -52,8 +55,8 @@ export const customerService = {
     return customerRepository.save(customer);
   },
 
-  update(id: string, input: Partial<CustomerInput>): Customer {
-    const current = customerRepository.findById(id);
+  async update(id: string, input: Partial<CustomerInput>): Promise<Customer> {
+    const current = await customerRepository.findById(id);
     if (!current) {
       throw new HttpError(404, "Customer not found.");
     }
@@ -67,13 +70,13 @@ export const customerService = {
     });
   },
 
-  remove(id: string) {
-    if (!customerRepository.findById(id)) {
+  async remove(id: string) {
+    if (!(await customerRepository.findById(id))) {
       throw new HttpError(404, "Customer not found.");
     }
-    if (agentRepository.listByCustomer(id).length > 0) {
+    if ((await agentRepository.listByCustomer(id)).length > 0) {
       throw new HttpError(409, "Remove this customer's agents first.");
     }
-    customerRepository.remove(id);
+    await customerRepository.remove(id);
   },
 };

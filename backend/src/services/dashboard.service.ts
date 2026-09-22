@@ -5,11 +5,13 @@ import { agentClient } from "./agent-client.service";
 
 export const dashboardService = {
   async overview() {
-    const customers = customerRepository.list();
-    const agents = agentRepository.list();
-    const turns = chatTurnRepository.listAll();
+    const [customers, agents, turns, agentHealth] = await Promise.all([
+      customerRepository.list(),
+      agentRepository.list(),
+      chatTurnRepository.listAll(),
+      agentClient.health(),
+    ]);
     const blocked = turns.filter((turn) => turn.blocked).length;
-    const agentHealth = await agentClient.health();
     return {
       customers: customers.length,
       agents: agents.length,

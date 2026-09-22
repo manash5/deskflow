@@ -8,12 +8,12 @@ import { authService } from "./auth.service";
 export async function seedIfEmpty() {
   await authService.ensureSeedAdmin();
 
-  if (customerRepository.list().length > 0) {
+  if ((await customerRepository.list()).length > 0) {
     return;
   }
 
   const now = new Date().toISOString();
-  const customer = customerRepository.save({
+  const customer = await customerRepository.save({
     id: randomUUID(),
     name: "Scalina Media",
     email: "info@scalinamedia.com",
@@ -23,7 +23,7 @@ export async function seedIfEmpty() {
     updatedAt: now,
   });
 
-  const agent = agentRepository.save({
+  const agent = await agentRepository.save({
     id: randomUUID(),
     customerId: customer.id,
     companyId: "scalina",

@@ -4,23 +4,23 @@ import { routeParam } from "../utils/params";
 
 export const customerController = {
   async list(_req: Request, res: Response) {
-    res.json(customerService.list());
+    res.json(await customerService.list());
   },
 
   async get(req: Request, res: Response) {
-    res.json(customerService.get(routeParam(req, "id")));
+    res.json(await customerService.get(routeParam(req, "id")));
   },
 
   async create(req: Request, res: Response) {
-    res.status(201).json(customerService.create(req.body || {}));
+    res.status(201).json(await customerService.create(req.body || {}));
   },
 
   async update(req: Request, res: Response) {
-    res.json(customerService.update(routeParam(req, "id"), req.body || {}));
+    res.json(await customerService.update(routeParam(req, "id"), req.body || {}));
   },
 
   async remove(req: Request, res: Response) {
-    customerService.remove(routeParam(req, "id"));
+    await customerService.remove(routeParam(req, "id"));
     res.status(204).end();
   },
 };

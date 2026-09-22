@@ -17,4 +17,5 @@ export const config = {
     .split(",")
     .map((origin) => origin.trim())
     .filter(Boolean),
+  neonDbUrl: process.env.NEON_DB_URL || process.env.DATABASE_URL || "",
 };

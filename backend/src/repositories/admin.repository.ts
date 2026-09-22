@@ -1,26 +1,43 @@
+import { sql } from "../db/neon";
+import { mapAdmin } from "../db/mappers";
 import { Admin } from "../models/admin.model";
-import { jsonStore } from "./store.repository";
 
 export const adminRepository = {
-  findByEmail(email: string): Admin | undefined {
-    return jsonStore
-      .read()
-      .admins.find((admin) => admin.email.toLowerCase() === email.toLowerCase());
+  async findByEmail(email: string): Promise<Admin | undefined> {
+    const rows = await sql`
+      SELECT id, email, name, password_hash, created_at
+      FROM admins
+      WHERE lower(email) = ${email.toLowerCase()}
+      LIMIT 1
+    `;
+    return rows[0] ? mapAdmin(rows[0]) : undefined;
   },
 
-  findById(id: string): Admin | undefined {
-    return jsonStore.read().admins.find((admin) => admin.id === id);
+  async findById(id: string): Promise<Admin | undefined> {
+    const rows = await sql`
+      SELECT id, email, name, password_hash, created_at
+      FROM admins
+      WHERE id = ${id}
+      LIMIT 1
+    `;
+    return rows[0] ? mapAdmin(rows[0]) : undefined;
   },
 
-  upsert(admin: Admin): Admin {
-    jsonStore.update((draft) => {
-      const index = draft.admins.findIndex((item) => item.id === admin.id);
-      if (index === -1) {
-        draft.admins.push(admin);
-      } else {
-        draft.admins[index] = admin;
-      }
-    });
+  async upsert(admin: Admin): Promise<Admin> {
+    await sql`
+      INSERT INTO admins (id, email, name, password_hash, created_at)
+      VALUES (
+        ${admin.id},
+        ${admin.email},
+        ${admin.name},
+        ${admin.passwordHash},
+        ${admin.createdAt}
+      )
+      ON CONFLICT (id) DO UPDATE SET
+        email = EXCLUDED.email,
+        name = EXCLUDED.name,
+        password_hash = EXCLUDED.password_hash
+    `;
     return admin;
   },
 };

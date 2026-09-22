@@ -17,12 +17,12 @@ function toPublic(admin: { id: string; email: string; name: string; createdAt: s
 
 export const authService = {
   async ensureSeedAdmin() {
-    const existing = adminRepository.findByEmail(config.adminEmail);
+    const existing = await adminRepository.findByEmail(config.adminEmail);
     if (existing) {
       return;
     }
     const passwordHash = await bcrypt.hash(config.adminPassword, 10);
-    adminRepository.upsert({
+    await adminRepository.upsert({
       id: randomUUID(),
       email: config.adminEmail.toLowerCase(),
       name: "Deskflow Admin",
@@ -32,7 +32,7 @@ export const authService = {
   },
 
   async login(email: string, password: string) {
-    const admin = adminRepository.findByEmail(email);
+    const admin = await adminRepository.findByEmail(email);
     if (!admin) {
       throw new HttpError(401, "Invalid email or password.");
     }
@@ -48,8 +48,8 @@ export const authService = {
     return { token, admin: toPublic(admin) };
   },
 
-  me(adminId: string) {
-    const admin = adminRepository.findById(adminId);
+  async me(adminId: string) {
+    const admin = await adminRepository.findById(adminId);
     if (!admin) {
       throw new HttpError(401, "Admin no longer exists.");
     }

@@ -1,6 +1,7 @@
 import cors from "cors";
 import express from "express";
 import { config } from "./config/env";
+import { pingDb } from "./db/neon";
 import { requireAuth } from "./middleware/auth.middleware";
 import { errorHandler } from "./middleware/error.middleware";
 import { agentRouter } from "./routes/agent.routes";
@@ -19,8 +20,9 @@ export function createApp() {
   );
   app.use(express.json({ limit: "2mb" }));
 
-  app.get("/api/health", (_req, res) => {
-    res.json({ ok: true });
+  app.get("/api/health", async (_req, res) => {
+    const database = await pingDb().catch(() => false);
+    res.json({ ok: true, database });
   });
 
   app.use("/api/auth", authRouter);

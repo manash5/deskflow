@@ -1,42 +1,80 @@
+import { sql } from "../db/neon";
+import { mapAgent } from "../db/mappers";
 import { Agent } from "../models/agent.model";
-import { jsonStore } from "./store.repository";
 
 export const agentRepository = {
-  list(): Agent[] {
-    return [...jsonStore.read().agents].sort((a, b) =>
-      b.createdAt.localeCompare(a.createdAt),
-    );
+  async list(): Promise<Agent[]> {
+    const rows = await sql`
+      SELECT id, customer_id, company_id, name, persona, enabled_agents,
+             contact_email, created_at, updated_at
+      FROM agents
+      ORDER BY created_at DESC
+    `;
+    return rows.map(mapAgent);
   },
 
-  listByCustomer(customerId: string): Agent[] {
-    return this.list().filter((agent) => agent.customerId === customerId);
+  async listByCustomer(customerId: string): Promise<Agent[]> {
+    const rows = await sql`
+      SELECT id, customer_id, company_id, name, persona, enabled_agents,
+             contact_email, created_at, updated_at
+      FROM agents
+      WHERE customer_id = ${customerId}
+      ORDER BY created_at DESC
+    `;
+    return rows.map(mapAgent);
   },
 
-  findById(id: string): Agent | undefined {
-    return jsonStore.read().agents.find((agent) => agent.id === id);
+  async findById(id: string): Promise<Agent | undefined> {
+    const rows = await sql`
+      SELECT id, customer_id, company_id, name, persona, enabled_agents,
+             contact_email, created_at, updated_at
+      FROM agents
+      WHERE id = ${id}
+      LIMIT 1
+    `;
+    return rows[0] ? mapAgent(rows[0]) : undefined;
   },
 
-  findByCompanyId(companyId: string): Agent | undefined {
-    return jsonStore
-      .read()
-      .agents.find((agent) => agent.companyId === companyId);
+  async findByCompanyId(companyId: string): Promise<Agent | undefined> {
+    const rows = await sql`
+      SELECT id, customer_id, company_id, name, persona, enabled_agents,
+             contact_email, created_at, updated_at
+      FROM agents
+      WHERE company_id = ${companyId}
+      LIMIT 1
+    `;
+    return rows[0] ? mapAgent(rows[0]) : undefined;
   },
 
-  save(agent: Agent): Agent {
-    jsonStore.update((draft) => {
-      const index = draft.agents.findIndex((item) => item.id === agent.id);
-      if (index === -1) {
-        draft.agents.push(agent);
-      } else {
-        draft.agents[index] = agent;
-      }
-    });
+  async save(agent: Agent): Promise<Agent> {
+    const enabledAgents = JSON.stringify(agent.enabledAgents);
+    await sql`
+      INSERT INTO agents (
+        id, customer_id, company_id, name, persona, enabled_agents,
+        contact_email, created_at, updated_at
+      )
+      VALUES (
+        ${agent.id},
+        ${agent.customerId},
+        ${agent.companyId},
+        ${agent.name},
+        ${agent.persona},
+        CAST(${enabledAgents} AS jsonb),
+        ${agent.contactEmail},
+        ${agent.createdAt},
+        ${agent.updatedAt}
+      )
+      ON CONFLICT (id) DO UPDATE SET
+        name = EXCLUDED.name,
+        persona = EXCLUDED.persona,
+        enabled_agents = EXCLUDED.enabled_agents,
+        contact_email = EXCLUDED.contact_email,
+        updated_at = EXCLUDED.updated_at
+    `;
     return agent;
   },
 
-  remove(id: string): void {
-    jsonStore.update((draft) => {
-      draft.agents = draft.agents.filter((item) => item.id !== id);
-    });
+  async remove(id: string): Promise<void> {
+    await sql`DELETE FROM agents WHERE id = ${id}`;
   },
 };

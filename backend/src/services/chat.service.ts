@@ -11,7 +11,7 @@ export const chatService = {
     if (!text) {
       throw new HttpError(400, "message is required.");
     }
-    const agent = agentRepository.findById(agentId);
+    const agent = await agentRepository.findById(agentId);
     if (!agent) {
       throw new HttpError(404, "Agent not found.");
     }
@@ -33,12 +33,12 @@ export const chatService = {
   },
 
   async sendPublic(companyId: string, message: string) {
-    const agent = agentService.getByCompanyId(companyId);
+    const agent = await agentService.getByCompanyId(companyId);
     return this.send(agent.id, message);
   },
 
-  history(agentId: string) {
-    if (!agentRepository.findById(agentId)) {
+  async history(agentId: string) {
+    if (!(await agentRepository.findById(agentId))) {
       throw new HttpError(404, "Agent not found.");
     }
     return chatTurnRepository.listByAgent(agentId);

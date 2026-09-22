@@ -1,32 +1,50 @@
+import { sql } from "../db/neon";
+import { mapCustomer } from "../db/mappers";
 import { Customer } from "../models/customer.model";
-import { jsonStore } from "./store.repository";
 
 export const customerRepository = {
-  list(): Customer[] {
-    return [...jsonStore.read().customers].sort((a, b) =>
-      b.createdAt.localeCompare(a.createdAt),
-    );
+  async list(): Promise<Customer[]> {
+    const rows = await sql`
+      SELECT id, name, email, company, notes, created_at, updated_at
+      FROM customers
+      ORDER BY created_at DESC
+    `;
+    return rows.map(mapCustomer);
   },
 
-  findById(id: string): Customer | undefined {
-    return jsonStore.read().customers.find((customer) => customer.id === id);
+  async findById(id: string): Promise<Customer | undefined> {
+    const rows = await sql`
+      SELECT id, name, email, company, notes, created_at, updated_at
+      FROM customers
+      WHERE id = ${id}
+      LIMIT 1
+    `;
+    return rows[0] ? mapCustomer(rows[0]) : undefined;
   },
 
-  save(customer: Customer): Customer {
-    jsonStore.update((draft) => {
-      const index = draft.customers.findIndex((item) => item.id === customer.id);
-      if (index === -1) {
-        draft.customers.push(customer);
-      } else {
-        draft.customers[index] = customer;
-      }
-    });
+  async save(customer: Customer): Promise<Customer> {
+    await sql`
+      INSERT INTO customers (id, name, email, company, notes, created_at, updated_at)
+      VALUES (
+        ${customer.id},
+        ${customer.name},
+        ${customer.email},
+        ${customer.company},
+        ${customer.notes},
+        ${customer.createdAt},
+        ${customer.updatedAt}
+      )
+      ON CONFLICT (id) DO UPDATE SET
+        name = EXCLUDED.name,
+        email = EXCLUDED.email,
+        company = EXCLUDED.company,
+        notes = EXCLUDED.notes,
+        updated_at = EXCLUDED.updated_at
+    `;
     return customer;
   },
 
-  remove(id: string): void {
-    jsonStore.update((draft) => {
-      draft.customers = draft.customers.filter((item) => item.id !== id);
-    });
+  async remove(id: string): Promise<void> {
+    await sql`DELETE FROM customers WHERE id = ${id}`;
   },
 };

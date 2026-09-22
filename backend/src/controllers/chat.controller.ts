@@ -11,11 +11,11 @@ export const chatController = {
   },
 
   async history(req: Request, res: Response) {
-    res.json(chatService.history(routeParam(req, "id")));
+    res.json(await chatService.history(routeParam(req, "id")));
   },
 
   async publicCard(req: Request, res: Response) {
-    res.json(agentService.publicCard(routeParam(req, "companyId")));
+    res.json(await agentService.publicCard(routeParam(req, "companyId")));
   },
 
   async publicSend(req: Request, res: Response) {

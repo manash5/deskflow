@@ -10,6 +10,6 @@ export const authController = {
   },
 
   async me(req: AuthedRequest, res: Response) {
-    res.json(authService.me(req.admin!.sub));
+    res.json(await authService.me(req.admin!.sub));
   },
 };
