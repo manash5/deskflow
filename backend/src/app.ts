@@ -9,6 +9,7 @@ import { authRouter } from "./routes/auth.routes";
 import { customerRouter } from "./routes/customer.routes";
 import { dashboardRouter } from "./routes/dashboard.routes";
 import { catalogRouter, publicChatRouter } from "./routes/public.routes";
+import { ApiResponseHelper } from "./utils/api-response";
 
 export function createApp() {
   const app = express();
@@ -22,7 +23,7 @@ export function createApp() {
 
   app.get("/api/health", async (_req, res) => {
     const database = await pingDb().catch(() => false);
-    res.json({ ok: true, database });
+    return ApiResponseHelper.success(res, { ok: true, database }, 200, "Health check");
   });
 
   app.use("/api/auth", authRouter);

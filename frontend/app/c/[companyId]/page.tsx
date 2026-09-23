@@ -2,11 +2,8 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import axios from "axios";
-import { apiError } from "@/lib/api";
+import { api, apiError } from "@/lib/api";
 import { inputClass, PrimaryButton } from "@/components/ui/primitives";
-
-const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000/api";
 
 type PublicCard = {
   companyId: string;
@@ -29,8 +26,8 @@ export default function PublicChatPage() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    axios
-      .get<PublicCard>(`${apiBase}/public/chat/${params.companyId}`)
+    api
+      .get<PublicCard>(`/public/chat/${params.companyId}`)
       .then((response) => setCard(response.data))
       .catch((err) => setError(apiError(err)));
   }, [params.companyId]);
@@ -41,8 +38,8 @@ export default function PublicChatPage() {
     setBusy(true);
     setError("");
     try {
-      const { data } = await axios.post<PublicTurn>(
-        `${apiBase}/public/chat/${params.companyId}`,
+      const { data } = await api.post<PublicTurn>(
+        `/public/chat/${params.companyId}`,
         { message },
       );
       setTurns((current) => [...current, data]);
