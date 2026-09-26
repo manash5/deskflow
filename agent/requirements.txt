@@ -10,6 +10,7 @@ langchain
 langchain-mistralai
 langchain-google-genai
 langchain-openai
+langchain-ollama
 langchain-community
 pymupdf 
 chromadb
