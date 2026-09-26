@@ -1,20 +1,26 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { api, apiError } from "@/lib/api";
+import { PageLoader } from "@/components/ui/PageLoader";
 import {
   Field,
   PageHeader,
   PrimaryButton,
   inputClass,
 } from "@/components/ui/primitives";
+import { useStudioLoad } from "@/modules/studio/StudioLoad";
 import { Customer } from "@/modules/types";
 
 export default function CustomersPage() {
+  const router = useRouter();
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -28,23 +34,35 @@ export default function CustomersPage() {
       setCustomers(data);
     } catch (err) {
       setError(apiError(err));
+    } finally {
+      setLoading(false);
     }
   }
+
+  useStudioLoad(loading, "Loading customers");
 
   useEffect(() => {
     load();
   }, []);
 
+  function closeForm() {
+    setOpen(false);
+    setForm({ name: "", email: "", company: "", notes: "" });
+  }
+
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setError("");
+    setSaving(true);
     try {
-      await api.post("/customers", form);
+      const { data } = await api.post<{ id: string }>("/customers", form);
       setForm({ name: "", email: "", company: "", notes: "" });
       setOpen(false);
-      await load();
+      router.push(`/customers/${data.id}`);
     } catch (err) {
       setError(apiError(err));
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -54,7 +72,7 @@ export default function CustomersPage() {
         title="Customers"
         description="Accounts that own one or more agents."
         action={
-          <PrimaryButton type="button" onClick={() => setOpen((value) => !value)}>
+          <PrimaryButton type="button" onClick={() => (open ? closeForm() : setOpen(true))}>
             {open ? "Cancel" : "Add customer"}
           </PrimaryButton>
         }
@@ -93,33 +111,56 @@ export default function CustomersPage() {
               onChange={(event) => setForm({ ...form, notes: event.target.value })}
             />
           </Field>
-          <div className="sm:col-span-2">
-            <PrimaryButton>Save customer</PrimaryButton>
+          <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
+            <PrimaryButton disabled={saving}>
+              {saving ? "Saving" : "Save customer"}
+            </PrimaryButton>
+            <button
+              type="button"
+              className="text-[13px] text-muted hover:text-ink"
+              onClick={closeForm}
+            >
+              Back to list
+            </button>
           </div>
         </form>
       ) : null}
-      <table className="w-full text-left text-sm">
-        <thead className="border-b border-line text-muted">
-          <tr>
-            <th className="py-3 pr-4 font-medium">Name</th>
-            <th className="py-3 pr-4 font-medium">Email</th>
-            <th className="py-3 font-medium">Agents</th>
-          </tr>
-        </thead>
-        <tbody>
-          {customers.map((customer) => (
-            <tr key={customer.id} className="border-b border-line">
-              <td className="py-3 pr-4">
-                <Link href={`/customers/${customer.id}`} className="font-medium hover:underline">
-                  {customer.name}
-                </Link>
-              </td>
-              <td className="py-3 pr-4 text-muted">{customer.email}</td>
-              <td className="py-3 text-muted">{customer.agentCount || 0}</td>
+      <div className="overflow-hidden rounded-xl border border-line bg-surface">
+        {loading ? (
+          <PageLoader label="Loading customers" />
+        ) : (
+        <table className="w-full text-left text-sm">
+          <thead className="bg-sidebar text-muted">
+            <tr>
+              <th className="px-4 py-2.5 font-medium">Name</th>
+              <th className="px-4 py-2.5 font-medium">Email</th>
+              <th className="px-4 py-2.5 font-medium">Agents</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {customers.length === 0 ? (
+              <tr>
+                <td colSpan={3} className="px-4 py-16 text-center text-[13px] text-muted">
+                  No customers yet.
+                </td>
+              </tr>
+            ) : (
+              customers.map((customer) => (
+                <tr key={customer.id} className="border-t border-line hover:bg-sidebar">
+                  <td className="px-4 py-2.5">
+                    <Link href={`/customers/${customer.id}`} className="font-medium hover:underline">
+                      {customer.name}
+                    </Link>
+                  </td>
+                  <td className="px-4 py-2.5 text-muted">{customer.email}</td>
+                  <td className="px-4 py-2.5 text-muted">{customer.agentCount || 0}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+        )}
+      </div>
     </div>
   );
 }

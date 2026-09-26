@@ -4,13 +4,17 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api, apiError } from "@/lib/api";
+import { PageLoader } from "@/components/ui/PageLoader";
 import { PageHeader } from "@/components/ui/primitives";
+import { useStudioLoad } from "@/modules/studio/StudioLoad";
 import { Customer } from "@/modules/types";
 
 export default function CustomerDetailPage() {
   const params = useParams<{ id: string }>();
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [error, setError] = useState("");
+  const waiting = !customer && !error;
+  useStudioLoad(waiting, "Loading customer");
 
   useEffect(() => {
     api
@@ -20,13 +24,23 @@ export default function CustomerDetailPage() {
   }, [params.id]);
 
   if (error) return <p className="text-sm text-danger">{error}</p>;
-  if (!customer) return <p className="text-sm text-muted">Loading customer</p>;
+  if (!customer) {
+    return (
+      <div>
+        <PageHeader title="Customer" description="Loading this account" />
+        <div className="overflow-hidden rounded-xl border border-line bg-surface">
+          <PageLoader label="Loading customer" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
       <PageHeader
         title={customer.name}
         description={customer.email}
+        back={{ href: "/customers", label: "Customers" }}
         action={
           <Link
             href={`/agents?new=1&customerId=${customer.id}`}
@@ -47,6 +61,19 @@ export default function CustomerDetailPage() {
           </tr>
         </thead>
         <tbody>
+          {(customer.agents || []).length === 0 ? (
+            <tr>
+              <td colSpan={3} className="py-8 text-sm text-muted">
+                No agents yet.{" "}
+                <Link
+                  href={`/agents?new=1&customerId=${customer.id}`}
+                  className="text-accent hover:underline"
+                >
+                  Create one
+                </Link>
+              </td>
+            </tr>
+          ) : null}
           {(customer.agents || []).map((agent) => (
             <tr key={agent.id} className="border-b border-line">
               <td className="py-3 pr-4 font-medium">{agent.name}</td>
