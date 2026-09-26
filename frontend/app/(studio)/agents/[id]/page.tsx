@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useEffect, useState } from "react";
 import { api, apiError } from "@/lib/api";
+import { ChatThread } from "@/components/chat/ChatThread";
 import {
   Field,
   GhostButton,
@@ -11,6 +12,7 @@ import {
   PrimaryButton,
   inputClass,
 } from "@/components/ui/primitives";
+import { PageLoader } from "@/components/ui/PageLoader";
 import { Agent, ChatTurn, Performance, Specialist } from "@/modules/types";
 
 function AgentDetail() {
@@ -28,6 +30,7 @@ function AgentDetail() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [pendingMessage, setPendingMessage] = useState("");
 
   const ingestError = search.get("ingestError") === "1";
 
@@ -117,26 +120,35 @@ function AgentDetail() {
 
   async function send(event: FormEvent) {
     event.preventDefault();
-    if (!agent || !message.trim()) return;
+    if (!agent || !message.trim() || busy) return;
+    const text = message.trim();
     setBusy(true);
     setError("");
+    setPendingMessage(text);
+    setMessage("");
     try {
       const { data } = await api.post<ChatTurn>(`/agents/${agent.id}/chat`, {
-        message,
+        message: text,
       });
       setTurns((current) => [...current, data]);
-      setMessage("");
+      setPendingMessage("");
       const perf = await api.get<Performance>(`/agents/${agent.id}/performance`);
       setPerformance(perf.data);
     } catch (err) {
       setError(apiError(err));
+      setMessage(text);
+      setPendingMessage("");
     } finally {
       setBusy(false);
     }
   }
 
+  if (error && !agent) {
+    return <p className="text-sm text-danger">{error}</p>;
+  }
+
   if (!agent) {
-    return <p className="text-sm text-muted">{error || "Loading agent…"}</p>;
+    return <PageLoader label="Loading agent" />;
   }
 
   return (
@@ -144,10 +156,21 @@ function AgentDetail() {
       <PageHeader
         title={agent.name}
         description={`${agent.customerName || "Customer"}  ${agent.companyId}`}
+        back={{ href: "/agents", label: "Agents" }}
         action={
-          <Link href={`/c/${agent.companyId}`} className="text-sm text-accent hover:underline">
-            Public chat
-          </Link>
+          <div className="flex flex-wrap items-center gap-3">
+            {agent.customerId ? (
+              <Link
+                href={`/customers/${agent.customerId}`}
+                className="text-sm text-muted hover:text-ink"
+              >
+                Customer
+              </Link>
+            ) : null}
+            <Link href={`/c/${agent.companyId}`} className="text-sm text-accent hover:underline">
+              Public chat
+            </Link>
+          </div>
         }
       />
       <div className="mb-8 flex gap-2">
@@ -254,32 +277,22 @@ function AgentDetail() {
         </div>
       ) : (
         <div className="flex min-h-[480px] flex-col border-t border-line pt-5">
-          <div className="flex-1 space-y-3 overflow-y-auto">
-            {turns.length === 0 ? (
-              <p className="text-sm text-muted">Send a message to test this agent.</p>
-            ) : null}
-            {turns.map((turn) => (
-              <div key={turn.id} className="space-y-1.5">
-                <div className="ml-auto max-w-[80%] rounded-md bg-accent px-3 py-2 text-sm text-accent-ink">
-                  {turn.message}
-                </div>
-                <div className="max-w-[90%] rounded-md bg-surface px-3 py-2 text-sm">
-                  {turn.answer}
-                  <p className="mt-1 font-mono text-xs text-muted">
-                    {turn.route || "blocked"} {Number(turn.confidence || 0).toFixed(2)}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
+          <ChatThread
+            turns={turns}
+            pendingMessage={pendingMessage}
+            waiting={busy}
+            emptyLabel="Ask a question the way a customer would. The reply is formatted here; route and confidence stay under the answer."
+            showRoute
+          />
           <form onSubmit={send} className="mt-3 flex gap-2">
             <input
               className={inputClass}
               placeholder="Ask as a customer"
               value={message}
               onChange={(event) => setMessage(event.target.value)}
+              disabled={busy}
             />
-            <PrimaryButton disabled={busy}>Send</PrimaryButton>
+            <PrimaryButton disabled={busy}>{busy ? "Sending" : "Send"}</PrimaryButton>
           </form>
         </div>
       )}
@@ -289,7 +302,7 @@ function AgentDetail() {
 
 export default function AgentDetailPage() {
   return (
-    <Suspense fallback={<p className="text-sm text-muted">Loading agent…</p>}>
+    <Suspense fallback={<PageLoader label="Loading agent" />}>
       <AgentDetail />
     </Suspense>
   );

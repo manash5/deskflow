@@ -2,7 +2,9 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import { ChatThread } from "@/components/chat/ChatThread";
 import { api, apiError } from "@/lib/api";
+import { PageLoader } from "@/components/ui/PageLoader";
 import { inputClass, PrimaryButton } from "@/components/ui/primitives";
 
 type PublicCard = {
@@ -22,6 +24,7 @@ export default function PublicChatPage() {
   const [card, setCard] = useState<PublicCard | null>(null);
   const [message, setMessage] = useState("");
   const [turns, setTurns] = useState<PublicTurn[]>([]);
+  const [pendingMessage, setPendingMessage] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -34,38 +37,47 @@ export default function PublicChatPage() {
 
   async function send(event: FormEvent) {
     event.preventDefault();
-    if (!message.trim()) return;
+    if (!message.trim() || busy) return;
+    const text = message.trim();
     setBusy(true);
     setError("");
+    setPendingMessage(text);
+    setMessage("");
     try {
       const { data } = await api.post<PublicTurn>(
         `/public/chat/${params.companyId}`,
-        { message },
+        { message: text },
       );
       setTurns((current) => [...current, data]);
-      setMessage("");
+      setPendingMessage("");
     } catch (err) {
       setError(apiError(err));
+      setMessage(text);
+      setPendingMessage("");
     } finally {
       setBusy(false);
     }
+  }
+
+  if (!card && !error) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <PageLoader label="Opening desk" />
+      </div>
+    );
   }
 
   return (
     <div className="mx-auto flex min-h-screen max-w-xl flex-col px-4 py-8">
       <p className="text-sm text-muted">{card?.companyName || "Support"}</p>
       <h1 className="mt-1 text-lg font-semibold">{card?.name || "Chat"}</h1>
-      <div className="mt-6 flex-1 space-y-3">
-        {turns.map((turn) => (
-          <div key={turn.id} className="space-y-1.5">
-            <div className="ml-auto max-w-[80%] rounded-xl bg-accent px-3 py-2 text-sm text-accent-ink">
-              {turn.message}
-            </div>
-            <div className="max-w-[90%] rounded-xl border border-line bg-surface px-3 py-2 text-sm">
-              {turn.answer}
-            </div>
-          </div>
-        ))}
+      <div className="mt-6 flex min-h-[320px] flex-1 flex-col">
+        <ChatThread
+          turns={turns}
+          pendingMessage={pendingMessage}
+          waiting={busy}
+          emptyLabel="Ask a question. You will see this desk writing a reply before the answer lands."
+        />
       </div>
       {error ? <p className="mt-3 text-sm text-danger">{error}</p> : null}
       <form onSubmit={send} className="sticky bottom-4 mt-6 flex gap-2">
@@ -74,8 +86,9 @@ export default function PublicChatPage() {
           placeholder="How can we help?"
           value={message}
           onChange={(event) => setMessage(event.target.value)}
+          disabled={busy}
         />
-        <PrimaryButton disabled={busy}>{busy ? "…" : "Send"}</PrimaryButton>
+        <PrimaryButton disabled={busy}>{busy ? "Sending" : "Send"}</PrimaryButton>
       </form>
     </div>
   );

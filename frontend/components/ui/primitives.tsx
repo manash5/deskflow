@@ -1,21 +1,43 @@
 import Link from "next/link";
 
+export function BackLink({
+  href,
+  children,
+}: {
+  href: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      className="mb-3 inline-block text-[13px] text-muted hover:text-ink"
+    >
+      {children}
+    </Link>
+  );
+}
+
 export function PageHeader({
   title,
   description,
   action,
+  back,
 }: {
   title: string;
   description?: string;
   action?: React.ReactNode;
+  back?: { href: string; label: string };
 }) {
   return (
-    <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-      <div>
-        <h1 className="text-[22px] font-semibold tracking-tight text-ink">{title}</h1>
-        {description ? <p className="mt-0.5 text-[13px] text-muted">{description}</p> : null}
+    <div className="mb-4">
+      {back ? <BackLink href={back.href}>{back.label}</BackLink> : null}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-[22px] font-semibold tracking-tight text-ink">{title}</h1>
+          {description ? <p className="mt-0.5 text-[13px] text-muted">{description}</p> : null}
+        </div>
+        {action}
       </div>
-      {action}
     </div>
   );
 }
