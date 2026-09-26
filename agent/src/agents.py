@@ -1,11 +1,14 @@
-import os 
-from dotenv import load_dotenv 
-from langchain.chat_models import init_chat_model
-from langchain_google_genai import ChatGoogleGenerativeAI
-from pathlib import Path 
-from langchain_core.messages import SystemMessage, HumanMessage
+import json
+import logging
+import os
+from pathlib import Path
+
+from dotenv import load_dotenv
 from jinja2 import Template
-import json 
+from langchain.chat_models import init_chat_model
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_ollama import ChatOllama
 
 _AGENT_ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(_AGENT_ROOT / ".env")
@@ -20,6 +23,10 @@ THINKING_MODEL_2 = os.getenv(
 FAST_MODEL = os.getenv("FAST_MODEL", "gemini-3.5-flash-lite")
 SECOND_MODEL = os.getenv("SECOND_MODEL", "openai/gpt-oss-120b")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
+
+logger = logging.getLogger(__name__)
 
 PROMPTS_DIR = Path(__file__).parent / "prompts"
 
@@ -28,41 +35,13 @@ CONFIDENCE_THRESHOLD = 0.6
 DEFAULT_PERSONA = (PROMPTS_DIR / "persona.md").read_text(encoding="utf-8")
 
 # ---- LLM Model -------------
-def get_llm(): 
-    return init_chat_model(
-        model=MODEL,
-        model_provider="mistralai",
-        temperature = 0.2, 
-        api_key = os.getenv("MISTRAL_API_KEY")
+def get_ollama_llm(temperature: float = 0.2):
+    return ChatOllama(
+        model=OLLAMA_MODEL,
+        base_url=OLLAMA_BASE_URL,
+        temperature=temperature,
     )
 
-def get_second_llm(): 
-    return init_chat_model(
-        model = SECOND_MODEL, 
-        model_provider = "groq", 
-        temperature = 0.2, 
-        api_key = os.getenv('GROQ_API_KEY')
-    )
-
-# qwen thinking model 
-def get_thinking_llm(): 
-    return init_chat_model(
-        model = REVIEW_MODEL, 
-        model_provider = "groq",
-        temperature =0,
-        api_key = os.getenv("GROQ_API_KEY")
-    )
-
-
-def get_thinking_model2():
-    """OpenRouter free reasoning model — used for review and support."""
-    return init_chat_model(
-        model=THINKING_MODEL_2,
-        model_provider="openai",
-        temperature=0,
-        api_key=os.getenv("OPEN_ROUTER_KEY"),
-        base_url=OPENROUTER_BASE_URL,
-    )
 
 def _google_api_key() -> str:
     key = (os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY") or "").strip()
@@ -75,12 +54,64 @@ def _google_api_key() -> str:
     return key
 
 
-def get_fast_model():
-    return ChatGoogleGenerativeAI(
-        model=FAST_MODEL,
+def _with_ollama_fallback(primary, temperature: float = 0.2):
+    backup = get_ollama_llm(temperature)
+    return primary.with_fallbacks([backup])
+
+
+def get_llm():
+    primary = init_chat_model(
+        model=MODEL,
+        model_provider="mistralai",
         temperature=0.2,
-        google_api_key=_google_api_key(),
+        api_key=os.getenv("MISTRAL_API_KEY"),
     )
+    return _with_ollama_fallback(primary, temperature=0.2)
+
+
+def get_second_llm():
+    primary = init_chat_model(
+        model=SECOND_MODEL,
+        model_provider="groq",
+        temperature=0.2,
+        api_key=os.getenv("GROQ_API_KEY"),
+    )
+    return _with_ollama_fallback(primary, temperature=0.2)
+
+
+def get_thinking_llm():
+    primary = init_chat_model(
+        model=REVIEW_MODEL,
+        model_provider="groq",
+        temperature=0,
+        api_key=os.getenv("GROQ_API_KEY"),
+    )
+    return _with_ollama_fallback(primary, temperature=0)
+
+
+def get_thinking_model2():
+    primary = init_chat_model(
+        model=THINKING_MODEL_2,
+        model_provider="openai",
+        temperature=0,
+        api_key=os.getenv("OPEN_ROUTER_KEY"),
+        base_url=OPENROUTER_BASE_URL,
+    )
+    return _with_ollama_fallback(primary, temperature=0)
+
+
+def get_fast_model():
+    try:
+        primary = ChatGoogleGenerativeAI(
+            model=FAST_MODEL,
+            temperature=0.2,
+            google_api_key=_google_api_key(),
+        )
+    except Exception as exc:
+        logger.warning("Could not create Gemini client (%s); using Ollama", exc)
+        return get_ollama_llm(0.2)
+    return _with_ollama_fallback(primary, temperature=0.2)
+
 
 def _company_enabled_agents(company: dict) -> list[str]:
     enabled = company.get("enabled_agents") or ENABLED_AGENTS
