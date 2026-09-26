@@ -2,15 +2,16 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { useAuth } from "@/modules/auth/AuthProvider";
+import { PageLoader } from "@/components/ui/PageLoader";
+import { StudioLoadOverlay, StudioLoadProvider, useSetStudioLoad } from "@/modules/studio/StudioLoad";
 import {
   DeskflowMark,
   IconBell,
   IconBoard,
   IconDirectory,
-  IconDraft,
   IconPlus,
   IconSearch,
   IconSignal,
@@ -18,7 +19,6 @@ import {
 
 const NAV = [
   { href: "/agents", label: "Agents", icon: IconBoard },
-  { href: "/agents?filter=draft", label: "Drafts", icon: IconDraft, match: "draft" },
   { href: "/customers", label: "Customers", icon: IconDirectory },
   { href: "/overview", label: "Activity", icon: IconSignal },
 ];
@@ -26,15 +26,12 @@ const NAV = [
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { admin, ready, logout } = useAuth();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [alertsOpen, setAlertsOpen] = useState(false);
   const [command, setCommand] = useState("");
   const [graphOnline, setGraphOnline] = useState<boolean | null>(null);
   const [agentCount, setAgentCount] = useState<number | null>(null);
-  const filterParam = searchParams.get("filter") || "";
-
   useEffect(() => {
     if (ready && !admin) router.replace("/login");
   }, [admin, ready, router]);
@@ -51,8 +48,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   if (!ready || !admin) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-sm text-muted">
-        Loading
+      <div className="flex min-h-screen items-center justify-center">
+        <PageLoader label="Opening studio" />
       </div>
     );
   }
@@ -70,17 +67,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     router.push(q ? `/agents?q=${encodeURIComponent(q)}` : "/agents");
   }
 
-  function isActive(href: string, match?: string) {
-    if (match === "draft") {
-      return pathname.startsWith("/agents") && filterParam === "draft";
-    }
-    if (href.startsWith("/agents") && !match) {
-      return pathname.startsWith("/agents") && filterParam !== "draft";
-    }
-    return pathname === href || pathname.startsWith(`${href}/`);
-  }
-
   return (
+    <StudioLoadProvider>
     <div className="min-h-screen bg-bg lg:grid lg:grid-cols-[248px_1fr]">
       <aside className="flex flex-col border-b border-line bg-sidebar lg:min-h-screen lg:border-b-0 lg:border-r">
         <Link href="/agents" className="flex items-center gap-2.5 px-4 py-4">
@@ -88,24 +76,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <span className="text-[15px] font-semibold tracking-tight text-ink">Deskflow</span>
         </Link>
 
-        <nav className="flex-1 space-y-0.5 px-2 text-[13px]">
-          {NAV.map((item) => {
-            const Icon = item.icon;
-            const active = isActive(item.href, item.match);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 ${
-                  active ? "bg-fill font-medium text-ink" : "text-ink hover:bg-fill"
-                }`}
-              >
-                <Icon className="h-4 w-4 text-muted" />
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
+        <StudioNav pathname={pathname} />
 
         <div className="mt-auto space-y-2 border-t border-line p-3">
           <Link
@@ -198,8 +169,55 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         </header>
-        <main className="flex-1 px-4 py-5 sm:px-6">{children}</main>
+        <main className="relative flex-1 px-4 py-5 sm:px-6">
+          {children}
+          <StudioLoadOverlay />
+        </main>
       </div>
     </div>
+    </StudioLoadProvider>
+  );
+}
+
+function StudioNav({ pathname }: { pathname: string }) {
+  const setLoad = useSetStudioLoad();
+
+  function isActive(href: string) {
+    if (href.startsWith("/agents")) return pathname.startsWith("/agents");
+    return pathname === href || pathname.startsWith(`${href}/`);
+  }
+
+  return (
+    <nav className="flex-1 space-y-0.5 px-2 text-[13px]">
+      {NAV.map((item) => {
+        const Icon = item.icon;
+        const active = isActive(item.href);
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            onClick={() => {
+              if (!active) {
+                setLoad?.({
+                  active: true,
+                  label:
+                    item.href === "/customers"
+                      ? "Loading customers"
+                      : item.href === "/overview"
+                        ? "Loading activity"
+                        : "Loading agents",
+                });
+              }
+            }}
+            className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 ${
+              active ? "bg-fill font-medium text-ink" : "text-ink hover:bg-fill"
+            }`}
+          >
+            <Icon className="h-4 w-4 text-muted" />
+            {item.label}
+          </Link>
+        );
+      })}
+    </nav>
   );
 }

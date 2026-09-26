@@ -6,6 +6,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { apiError } from "@/lib/api";
 import { useAuth } from "@/modules/auth/AuthProvider";
 import { DeskflowMark } from "@/components/ui/marks";
+import { PageLoader } from "@/components/ui/PageLoader";
 
 function StudioPreview() {
   return (
@@ -71,6 +72,14 @@ export default function LoginPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  if (!ready) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center">
+        <PageLoader label="Opening studio" />
+      </div>
+    );
   }
 
   return (

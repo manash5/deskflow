@@ -6,9 +6,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { api, apiError } from "@/lib/api";
 import { Chip, inputClass } from "@/components/ui/primitives";
 import { AgentForm, AgentFormValues } from "@/components/agents/AgentForm";
+import { PageLoader } from "@/components/ui/PageLoader";
 import { IconSearch } from "@/components/ui/marks";
 import { Agent, Customer, Specialist } from "@/modules/types";
 import { agentLane, laneLabel } from "@/modules/agents/status";
+import { useStudioLoad } from "@/modules/studio/StudioLoad";
 
 function formatWhen(value?: string | null) {
   if (!value) return "Never";
@@ -20,7 +22,7 @@ function formatWhen(value?: string | null) {
   });
 }
 
-type Filter = "all" | "active" | "draft" | "review";
+type Filter = "all" | "active" | "unused" | "review";
 
 function AgentsView() {
   const router = useRouter();
@@ -35,10 +37,11 @@ function AgentsView() {
   const [specialists, setSpecialists] = useState<Specialist[]>([]);
   const [query, setQuery] = useState(qParam);
   const [filter, setFilter] = useState<Filter>(
-    filterParam === "draft" || filterParam === "active" || filterParam === "review"
+    filterParam === "active" || filterParam === "unused" || filterParam === "review"
       ? filterParam
       : "all",
   );
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [formError, setFormError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -52,12 +55,14 @@ function AgentsView() {
     enabledAgents: ["sales", "support", "account", "billing", "booking", "default"],
   });
 
+  useStudioLoad(loading, "Loading agents");
+
   useEffect(() => {
     setQuery(qParam);
   }, [qParam]);
 
   useEffect(() => {
-    if (filterParam === "draft" || filterParam === "active" || filterParam === "review") {
+    if (filterParam === "active" || filterParam === "unused" || filterParam === "review") {
       setFilter(filterParam);
     }
   }, [filterParam]);
@@ -66,7 +71,8 @@ function AgentsView() {
     api
       .get<Agent[]>("/agents")
       .then((response) => setAgents(response.data))
-      .catch((err) => setError(apiError(err)));
+      .catch((err) => setError(apiError(err)))
+      .finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
@@ -90,8 +96,8 @@ function AgentsView() {
   const counts = useMemo(() => {
     const total = agents.length;
     const active = agents.filter((agent) => agentLane(agent) === "active").length;
-    const draft = agents.filter((agent) => agentLane(agent) === "draft").length;
-    return { total, active, draft };
+    const unused = agents.filter((agent) => agentLane(agent) === "unused").length;
+    return { total, active, unused };
   }, [agents]);
 
   const visible = useMemo(() => {
@@ -159,8 +165,8 @@ function AgentsView() {
             <p className="font-semibold text-accent">{counts.active}</p>
           </div>
           <div className="border-l border-line px-3 py-2">
-            <p className="text-muted">Draft</p>
-            <p className="font-semibold">{counts.draft}</p>
+            <p className="text-muted">Unused</p>
+            <p className="font-semibold">{counts.unused}</p>
           </div>
         </div>
         <div className="relative min-w-[220px] flex-1">
@@ -177,7 +183,7 @@ function AgentsView() {
             [
               ["all", "All"],
               ["active", "Active"],
-              ["draft", "Draft"],
+              ["unused", "Unused"],
               ["review", "Needs review"],
             ] as const
           ).map(([id, label]) => (
@@ -191,34 +197,24 @@ function AgentsView() {
       {error ? <p className="mt-3 text-sm text-danger">{error}</p> : null}
 
       <div className="mt-4 min-w-0 overflow-hidden rounded-xl border border-line bg-surface">
-          {visible.length === 0 ? (
+          {loading ? (
+            <PageLoader label="Loading agents" />
+          ) : visible.length === 0 ? (
             <div className="px-6 py-16 text-center">
-              <p className="text-[18px] font-semibold">Route the next support queue</p>
-              <p className="mt-1 text-[13px] text-muted">
-                Create an agent, or loosen filters to see drafts and live bots.
+              <p className="text-[18px] font-semibold">
+                {agents.length === 0 ? "No agents yet" : "No agents match"}
               </p>
-              <div className="mx-auto mt-6 max-w-lg rounded-xl border border-line p-4 text-left">
-                <p className="text-[12px] font-medium text-muted">Quick filters</p>
-                <div className="mt-3 grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <p className="text-[12px] text-muted">Status</p>
-                    <div className="mt-1 flex flex-wrap gap-2">
-                      <button className="text-[13px] text-ink underline" type="button" onClick={() => setFilter("active")}>
-                        Active
-                      </button>
-                      <button className="text-[13px] text-ink underline" type="button" onClick={() => setFilter("draft")}>
-                        Draft
-                      </button>
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-[12px] text-muted">Actions</p>
-                    <Link href="?new=1" className="mt-1 inline-flex rounded-lg bg-accent px-3 py-1.5 text-[13px] font-semibold text-accent-ink">
-                      New agent
-                    </Link>
-                  </div>
-                </div>
-              </div>
+              <p className="mt-1 text-[13px] text-muted">
+                {agents.length === 0
+                  ? "Create an agent to start routing customer conversations."
+                  : "Clear search or switch filters to see more agents."}
+              </p>
+              <Link
+                href="?new=1"
+                className="mt-5 inline-flex rounded-lg bg-accent px-3 py-1.5 text-[13px] font-semibold text-accent-ink"
+              >
+                Create agent
+              </Link>
             </div>
           ) : (
             <table className="w-full min-w-[680px] text-left text-[13px]">
@@ -318,7 +314,7 @@ function AgentsView() {
 
 export default function AgentsPage() {
   return (
-    <Suspense fallback={<p className="text-sm text-muted">Loading agents</p>}>
+    <Suspense fallback={<PageLoader label="Loading agents" />}>
       <AgentsView />
     </Suspense>
   );
